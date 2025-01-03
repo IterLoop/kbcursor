@@ -1,33 +1,22 @@
 from typing import Dict, Any, Optional
 from datetime import datetime
 import logging
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
+@dataclass
 class WebContent:
-    def __init__(self, 
-                 url: str,
-                 title: Optional[str] = None,
-                 text: Optional[str] = None,
-                 metadata: Optional[Dict[str, Any]] = None,
-                 source: str = "unknown",
-                 timestamp: Optional[datetime] = None):
-        self.url = url
-        self.title = title or "Untitled"
-        self.text = text or ""
-        self.metadata = metadata or {}
-        self.source = source
-        self.timestamp = timestamp or datetime.now()
+    url: str
+    raw_text: str
+    cleaned_text: Optional[str] = None
+    title: Optional[str] = None
+    source: str = "unknown"
+    metadata: dict = None
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "url": self.url,
-            "title": self.title,
-            "text": self.text,
-            "metadata": self.metadata,
-            "source": self.source,
-            "timestamp": self.timestamp.isoformat()
-        }
+    def __post_init__(self):
+        if self.metadata is None:
+            self.metadata = {}
 
 class BaseCrawler:
     def __init__(self, name: str):

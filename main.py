@@ -2,8 +2,8 @@ import logging
 import os
 from typing import List, Optional, Set
 from urllib.parse import urlparse, urljoin
-import scripts.scraper as scraper
-from crawler.crawlers import StaticCrawler, JSCrawler, ApifyCrawler
+from scripts import scraper
+from crawler.crawlers.static_crawler import StaticCrawler
 from crawler.cleaner import TextCleaner
 from crawler.base import WebContent
 from bs4 import BeautifulSoup
@@ -193,4 +193,17 @@ def main():
         logger.error(f"An unexpected error occurred: {e}")
 
 if __name__ == "__main__":
-    main() 
+    # Save intermediate generations to track progress
+    os.makedirs('progress_logs', exist_ok=True)
+    
+    def save_progress(stage: str, message: str):
+        with open(f'progress_logs/{stage}.txt', 'a', encoding='utf-8') as f:
+            f.write(f'[{datetime.now().isoformat()}] {message}\n')
+    
+    try:
+        save_progress('startup', 'Starting crawl process')
+        main()
+        save_progress('completion', 'Crawl completed successfully')
+    except Exception as e:
+        save_progress('error', f'Crawl failed with error: {str(e)}')
+        raise

@@ -1,3 +1,3 @@
 """
-Crawler package for web content extraction with multiple fallback mechanisms.
+Crawler package for web content extraction and processing.
 """ 

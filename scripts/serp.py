@@ -16,10 +16,14 @@ print(f"Loading .env from: {env_path}")
 load_dotenv(dotenv_path=env_path)
 
 def connect_to_mongodb():
-    """Connect to local MongoDB instance."""
+    """Connect to local MongoDB instance using credentials from .env file."""
     try:
-        client = MongoClient('mongodb://localhost:27017/')
-        db = client['searchresults']
+        # Get MongoDB connection details from environment variables
+        mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
+        db_name = os.getenv('MONGODB_DB_NAME', 'searchresults')
+        
+        client = MongoClient(mongo_uri)
+        db = client[db_name]
         print("Successfully connected to MongoDB")
         return db
     except Exception as e:

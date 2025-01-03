@@ -1,34 +1,144 @@
-from urllib.parse import urlparse
+import logging
+import os
+from pathlib import Path
+from typing import Optional, Dict, Any
 from datetime import datetime, UTC, timedelta
+from dataclasses import dataclass
 import hashlib
+import urllib.parse
+import requests
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
+from apify_client import ApifyClient
+from pymongo import MongoClient
+from tenacity import retry, stop_after_attempt, wait_exponential
+from dotenv import load_dotenv
+
+# Define root directory
+ROOT_DIR = Path(__file__).parent.parent
+
+# Load environment variables from the secrets folder
+env_path = ROOT_DIR / 'secrets' / '.env'
+print(f"Loading .env from: {env_path}")
+
+# Debug: Print environment file contents
+try:
+    with open(env_path, 'r') as f:
+        env_contents = f.read()
+        print("\nEnvironment file contents:")
+        for line in env_contents.splitlines():
+            if line.strip() and not line.startswith('#'):
+                key = line.split('=')[0].strip()
+                print(f"Found key: {key}")
+except Exception as e:
+    print(f"Error reading .env file: {e}")
+
+# Load environment variables
+load_dotenv(env_path)
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+@dataclass
+class CrawlResult:
+    url: str
+    title: Optional[str]
+    text: str
+    metadata: Dict[str, Any]
+    crawl_time: datetime
+    method: str
 
 class MultiCrawler:
-    def __init__(self, apify_api_key: str, mongodb_uri: str):
-        self.apify_client = ApifyClient(apify_api_key)
-        self.mongo_client = MongoClient(mongodb_uri)
-        self.db = self.mongo_client['searchresults']
-        self.collection = self.db['scraped_data']
-        self.url_tracking = self.db['url_tracking']  # New collection for URL tracking
-        
-        # Create indexes
-        self._setup_indexes()
-        self._verify_connections()
+    def __init__(self, apify_api_key: str, mongodb_url: str, serp_db_name: str, crawl_db_name: str):
+        try:
+            self.apify_client = ApifyClient(apify_api_key)
+            self.mongo_client = MongoClient(mongodb_url)
+            
+            # Initialize both databases
+            self.serp_db = self.mongo_client[serp_db_name]
+            self.crawl_db = self.mongo_client[crawl_db_name]
+            
+            # Collections
+            self.collection = self.crawl_db['scraped_data']
+            self.url_tracking = self.crawl_db['url_tracking']
+            
+            # Verify connections first
+            self._verify_connections()
+            
+            # Setup indexes after verifying connection
+            self._setup_indexes()
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize crawler: {e}")
+            raise
+
+    def _verify_connections(self):
+        """Verify both Apify and MongoDB connections"""
+        try:
+            # Test Apify connection
+            self.apify_client.user().get()
+            logger.info("Successfully connected to Apify")
+            
+            # Test MongoDB connection
+            self.mongo_client.admin.command('ping')
+            logger.info("Successfully connected to MongoDB")
+            
+            # Log database and collection names
+            logger.info(f"Using SERP database: {self.serp_db.name}")
+            logger.info(f"Using Crawl database: {self.crawl_db.name}")
+            logger.info(f"Collections: scraped_data, url_tracking")
+            
+            # Verify collections exist
+            collections = self.crawl_db.list_collection_names()
+            logger.info(f"Available collections: {collections}")
+            
+        except Exception as e:
+            logger.error(f"Connection verification failed: {e}")
+            raise
 
     def _setup_indexes(self):
-        """Setup necessary database indexes"""
-        # Index for URL tracking
-        self.url_tracking.create_index([("url", 1)], unique=True)
-        self.url_tracking.create_index([("last_crawl_date", 1)])
-        
-        # Index for scraped data
-        self.collection.create_index([("url", 1)])
-        self.collection.create_index([("crawl_time", 1)])
+        """Setup necessary database indexes to match existing structure"""
+        try:
+            # Indexes for scraped_data collection
+            self.collection.create_index(
+                [("url", 1)], 
+                name="url_1"
+            )
+            self.collection.create_index(
+                [("crawl_time", 1)], 
+                name="crawl_time_1"
+            )
+            
+            # Indexes for url_tracking collection
+            self.url_tracking.create_index(
+                [("url", 1)], 
+                unique=True,
+                name="url_1"
+            )
+            self.url_tracking.create_index(
+                [("last_crawl_date", 1)], 
+                name="last_crawl_date_1"
+            )
+            
+            logger.info("MongoDB indexes verified")
+            
+            # Verify indexes match expected structure
+            scraped_indexes = list(self.collection.list_indexes())
+            tracking_indexes = list(self.url_tracking.list_indexes())
+            logger.debug(f"Scraped data indexes: {[idx['name'] for idx in scraped_indexes]}")
+            logger.debug(f"URL tracking indexes: {[idx['name'] for idx in tracking_indexes]}")
+            
+        except Exception as e:
+            logger.error(f"Index verification failed: {e}")
+            # Continue execution as indexes already exist
+            pass
 
     def _get_url_hash(self, content: str) -> str:
         """Generate hash of content to detect changes"""
         return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
-    async def _check_last_modified(self, url: str) -> Optional[datetime]:
+    def _check_last_modified(self, url: str) -> Optional[datetime]:
         """Check if the URL content has been modified"""
         try:
             headers = {
@@ -132,8 +242,63 @@ class MultiCrawler:
             upsert=True
         )
 
+    def _store_result(self, result: CrawlResult):
+        """Store crawl result in MongoDB with proper error handling"""
+        try:
+            # Prepare document for MongoDB
+            document = {
+                "url": result.url,
+                "title": result.title,
+                "text": result.text,
+                "metadata": result.metadata,
+                "crawl_time": result.crawl_time,
+                "method": result.method,
+                "created_at": datetime.now(UTC),
+                "word_count": len(result.text.split()),
+                "status": "success"
+            }
+            
+            # Insert into scraped_data collection
+            insert_result = self.collection.insert_one(document)
+            
+            if not insert_result.inserted_id:
+                raise Exception("Failed to insert document")
+                
+            logger.info(f"Successfully stored results in MongoDB with ID: {insert_result.inserted_id}")
+            logger.info(f"Database: {self.crawl_db.name}, Collection: {self.collection.name}")
+            
+            # Update URL tracking
+            tracking_data = {
+                "url": result.url,
+                "last_crawl_date": result.crawl_time,
+                "last_crawl_method": result.method,
+                "success": True,
+                "document_id": insert_result.inserted_id,
+                "updated_at": datetime.now(UTC)
+            }
+            
+            # Update tracking collection
+            self.url_tracking.update_one(
+                {"url": result.url},
+                {"$set": tracking_data},
+                upsert=True
+            )
+            
+            logger.info(f"Updated URL tracking for: {result.url}")
+            
+            # Verify the data was stored
+            stored_doc = self.collection.find_one({"_id": insert_result.inserted_id})
+            if not stored_doc:
+                raise Exception("Document not found after insertion")
+                
+            return insert_result.inserted_id
+            
+        except Exception as e:
+            logger.error(f"Failed to store results in MongoDB for URL {result.url}: {e}")
+            raise
+
     def crawl_url(self, url: str) -> Optional[CrawlResult]:
-        """Try different crawling methods with fallback"""
+        """Try different crawling methods with fallback strategy"""
         # Validate URL
         try:
             parsed = urllib.parse.urlparse(url)
@@ -162,27 +327,382 @@ class MultiCrawler:
             logger.warning(f"Skipping Google search URL: {url}")
             return None
 
-        # Try each crawling method
-        for crawler_method in [self._static_crawl, self._js_crawl, self._apify_crawl]:
-            result = crawler_method(url)
-            if result and len(result.text) > 100:
-                logger.info(f"Successful crawl with {result.method} for {url}")
-                self._store_result(result)
-                self._update_url_tracking(url, result)
-                return result
+        # Define crawling methods with their names
+        crawlers = [
+            ("BeautifulSoup Static", self._static_crawl),
+            ("Playwright Dynamic", self._js_crawl),
+            ("Selenium Fallback", self._selenium_crawl),
+            ("Scrapy Fallback", self._scrapy_crawl),
+            ("Apify Website Content", self._apify_crawl)
+        ]
+
+        # Try each crawler in sequence
+        for crawler_name, crawler_method in crawlers:
+            logger.info(f"Attempting {crawler_name} crawler for: {url}")
+            try:
+                result = crawler_method(url)
+                if result and len(result.text) > 100:
+                    logger.info(f"Successfully crawled with {crawler_name}")
+                    self._store_result(result)
+                    self._update_url_tracking(url, result)
+                    return result
+                else:
+                    logger.warning(f"{crawler_name} crawler failed to get sufficient content")
+            except Exception as e:
+                logger.error(f"{crawler_name} crawler failed with error: {e}")
+                continue
 
         logger.error(f"All crawling methods failed for: {url}")
         self._record_crawl_failure(url)
         return None
 
+    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10))
+    def _static_crawl(self, url: str) -> Optional[CrawlResult]:
+        """Simple static page crawler using requests"""
+        try:
+            logger.info(f"Attempting static crawl for: {url}")
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, "html.parser")
+            text = soup.get_text(separator=" ", strip=True)
+            
+            if not text:
+                return None
+                
+            return CrawlResult(
+                url=url,
+                title=soup.title.string if soup.title else None,
+                text=text,
+                metadata=self._extract_metadata(soup),
+                crawl_time=datetime.now(UTC),
+                method="static"
+            )
+        except Exception as e:
+            logger.error(f"Static crawler failed for {url}: {e}")
+            return None
+
+    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10))
+    def _js_crawl(self, url: str) -> Optional[CrawlResult]:
+        """JavaScript-enabled crawler using Playwright"""
+        logger.info(f"Attempting JavaScript crawl for: {url}")
+        browser = None
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context(
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                )
+                page = context.new_page()
+                page.set_default_timeout(30000)
+                
+                # Wait for network idle to ensure JS content loads
+                page.goto(url, wait_until="networkidle")
+                
+                # Wait for common content selectors
+                selectors = ["article", "main", ".content", "#content"]
+                for selector in selectors:
+                    try:
+                        page.wait_for_selector(selector, timeout=5000)
+                    except:
+                        continue
+                
+                content = page.content()
+                soup = BeautifulSoup(content, "html.parser")
+                text = soup.get_text(separator=" ", strip=True)
+                
+                if not text:
+                    return None
+                    
+                result = CrawlResult(
+                    url=url,
+                    title=soup.title.string if soup.title else None,
+                    text=text,
+                    metadata={
+                        **self._extract_metadata(soup),
+                        'final_url': page.url
+                    },
+                    crawl_time=datetime.now(UTC),
+                    method="javascript"
+                )
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"JavaScript crawler failed for {url}: {e}")
+            return None
+        finally:
+            if browser:
+                browser.close()
+
+    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=4, max=30))
+    def _apify_crawl(self, url: str) -> Optional[CrawlResult]:
+        """Apify website-content-crawler as last resort"""
+        try:
+            logger.info(f"Attempting Apify crawl for: {url}")
+            
+            run_input = {
+                "startUrls": [{"url": url}],
+                "maxCrawlingDepth": 1,
+                "maxPagesPerCrawl": 1,
+                "additionalMimeTypes": ["text/markdown", "text/plain"],
+                "proxyConfiguration": {"useApifyProxy": True}
+            }
+            
+            run = self.apify_client.actor("apify/website-content-crawler").call(run_input=run_input)
+            items = self.apify_client.dataset(run["defaultDatasetId"]).list_items().items
+            
+            if not items:
+                return None
+                
+            item = items[0]
+            if not item.get('text'):
+                return None
+                
+            return CrawlResult(
+                url=url,
+                title=item.get('title'),
+                text=item.get('text', ''),
+                metadata={
+                    'loadedUrl': item.get('loadedUrl'),
+                    'loadedTime': item.get('loadedTime'),
+                    'pageType': item.get('pageType'),
+                    **item.get('metadata', {})
+                },
+                crawl_time=datetime.now(UTC),
+                method="apify"
+            )
+            
+        except Exception as e:
+            logger.error(f"Apify crawler failed for {url}: {e}")
+            return None
+
+    @staticmethod
+    def _extract_metadata(soup: BeautifulSoup) -> Dict[str, Any]:
+        """Extract metadata from BeautifulSoup object"""
+        metadata = {}
+        for meta in soup.find_all('meta'):
+            name = meta.get('name', meta.get('property'))
+            content = meta.get('content')
+            if name and content:
+                metadata[name] = content
+        return metadata
+
+    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10))
+    def _selenium_crawl(self, url: str) -> Optional[CrawlResult]:
+        """Selenium-based crawler as another fallback"""
+        try:
+            from selenium import webdriver
+            from selenium.webdriver.chrome.options import Options
+            from selenium.webdriver.support.ui import WebDriverWait
+            from selenium.webdriver.support import expected_conditions as EC
+            
+            logger.info(f"Attempting Selenium crawl for: {url}")
+            
+            chrome_options = Options()
+            chrome_options.add_argument('--headless')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            
+            with webdriver.Chrome(options=chrome_options) as driver:
+                driver.get(url)
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located(("tag name", "body"))
+                )
+                
+                content = driver.page_source
+                soup = BeautifulSoup(content, "html.parser")
+                text = soup.get_text(separator=" ", strip=True)
+                
+                if not text:
+                    return None
+                    
+                return CrawlResult(
+                    url=url,
+                    title=driver.title,
+                    text=text,
+                    metadata={
+                        **self._extract_metadata(soup),
+                        'final_url': driver.current_url
+                    },
+                    crawl_time=datetime.now(UTC),
+                    method="selenium"
+                )
+                
+        except Exception as e:
+            logger.error(f"Selenium crawler failed for {url}: {e}")
+            return None
+
+    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10))
+    def _scrapy_crawl(self, url: str) -> Optional[CrawlResult]:
+        """Scrapy-based crawler as another fallback"""
+        try:
+            import scrapy
+            from scrapy.crawler import CrawlerProcess
+            from scrapy.http import TextResponse
+            
+            logger.info(f"Attempting Scrapy crawl for: {url}")
+            
+            class SinglePageSpider(scrapy.Spider):
+                name = 'single_page'
+                start_urls = [url]
+                
+                def parse(self, response: TextResponse):
+                    return {
+                        'url': response.url,
+                        'title': response.css('title::text').get(),
+                        'text': ' '.join(response.css('body ::text').getall()),
+                        'metadata': {
+                            meta.attrib.get('name', meta.attrib.get('property')): meta.attrib['content']
+                            for meta in response.css('meta[content]')
+                            if meta.attrib.get('name') or meta.attrib.get('property')
+                        }
+                    }
+            
+            results = []
+            process = CrawlerProcess(settings={
+                'LOG_ENABLED': False,
+                'ROBOTSTXT_OBEY': True,
+                'USER_AGENT': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            })
+            
+            def collect_result(item):
+                results.append(item)
+            
+            process.crawl(SinglePageSpider)
+            process.start()
+            
+            if results:
+                result = results[0]
+                return CrawlResult(
+                    url=result['url'],
+                    title=result['title'],
+                    text=result['text'],
+                    metadata=result['metadata'],
+                    crawl_time=datetime.now(UTC),
+                    method="scrapy"
+                )
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Scrapy crawler failed for {url}: {e}")
+            return None
+
+    def verify_storage(self, url: str):
+        """Verify data storage for a URL"""
+        try:
+            # Check scraped_data collection
+            doc = self.collection.find_one({"url": url})
+            if doc:
+                logger.info(f"Found document in scraped_data:")
+                logger.info(f"Title: {doc.get('title')}")
+                logger.info(f"Method: {doc.get('method')}")
+                logger.info(f"Word count: {doc.get('word_count')}")
+            else:
+                logger.error(f"No document found for URL: {url}")
+            
+            # Check url_tracking collection
+            tracking = self.url_tracking.find_one({"url": url})
+            if tracking:
+                logger.info(f"Found tracking data:")
+                logger.info(f"Last crawl: {tracking.get('last_crawl_date')}")
+                logger.info(f"Success: {tracking.get('success')}")
+            else:
+                logger.error(f"No tracking data found for URL: {url}")
+                
+        except Exception as e:
+            logger.error(f"Error verifying storage: {e}")
+
 def main():
-    # ... (previous main code remains the same)
+    # Get environment variables with debug output
+    env_vars = {
+        'APIFY_API_KEY': os.getenv('APIFY_API_KEY'),
+        'MONGO_DB_URL': os.getenv('MONGO_DB_URL'),
+        'MONGODB_DB_NAME1': os.getenv('MONGODB_DB_NAME1'),
+        'MONGODB_DB_NAME2': os.getenv('MONGODB_DB_NAME2')
+    }
+    
+    # Debug logging for environment variables
+    print("\nEnvironment Variables:")
+    for key, value in env_vars.items():
+        masked_value = '***' if value and key == 'APIFY_API_KEY' else value
+        print(f"{key}: {masked_value}")
+    
+    if not all(env_vars.values()):
+        missing_vars = [key for key, value in env_vars.items() if not value]
+        logger.error(f"Missing environment variables: {', '.join(missing_vars)}")
+        raise ValueError("Missing required environment variables")
+    
+    # Initialize crawler
+    crawler = MultiCrawler(
+        apify_api_key=env_vars['APIFY_API_KEY'],
+        mongodb_url=env_vars['MONGO_DB_URL'],
+        serp_db_name=env_vars['MONGODB_DB_NAME1'],
+        crawl_db_name=env_vars['MONGODB_DB_NAME2']
+    )
+    
+    # Get URLs from SERP results or user input
+    serp_path = ROOT_DIR / 'serp_results.json'
+    try:
+        with open(serp_path, 'r') as f:
+            import json
+            serp_data = json.load(f)
+            if isinstance(serp_data, list):
+                urls = [item.get('url') for item in serp_data if item.get('url')]
+            else:
+                logger.error("Invalid SERP results format")
+                urls = []
+    except FileNotFoundError:
+        logger.info(f"No SERP results found at {serp_path}, requesting manual URL input")
+        urls = [input("Enter the URL to crawl: ").strip()]
+    except json.JSONDecodeError:
+        logger.error(f"Invalid JSON format in {serp_path}")
+        urls = [input("Enter the URL to crawl: ").strip()]
+    
+    if not urls:
+        logger.error("No valid URLs to process")
+        return
     
     # Process URLs
-    for url in urls:
-        result = crawler.crawl_url(url)
-        if result:
-            logger.info(f"Successfully processed {url} using {result.method} method")
-            logger.info(f"Content length: {len(result.text)} characters")
-        else:
-            logger.error(f"Failed to process {url}")
+    total_urls = len(urls)
+    successful_crawls = 0
+    
+    for index, url in enumerate(urls, 1):
+        logger.info(f"Processing URL {index}/{total_urls}: {url}")
+        
+        if not url:
+            logger.warning("Skipping empty URL")
+            continue
+            
+        try:
+            result = crawler.crawl_url(url)
+            if result:
+                successful_crawls += 1
+                logger.info(f"Successfully processed {url}")
+                logger.info(f"Method: {result.method}")
+                logger.info(f"Title: {result.title}")
+                logger.info(f"Content length: {len(result.text)} characters")
+                crawler.verify_storage(url)
+        except Exception as e:
+            logger.error(f"Error processing {url}: {e}")
+            continue
+    
+    # Log summary
+    logger.info("\nCrawl Summary:")
+    logger.info(f"Total URLs processed: {total_urls}")
+    logger.info(f"Successful crawls: {successful_crawls}")
+    logger.info(f"Failed crawls: {total_urls - successful_crawls}")
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("\nCrawling interrupted by user")
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+    finally:
+        logger.info("Crawling process completed")

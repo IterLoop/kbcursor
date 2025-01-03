@@ -4,6 +4,8 @@ from apify_client import ApifyClient
 from dotenv import load_dotenv
 from pathlib import Path
 from typing import List, Dict, Any
+from pymongo import MongoClient
+from datetime import datetime
 
 # Get the project root directory (parent of scripts folder)
 ROOT_DIR = Path(__file__).parent.parent
@@ -13,19 +15,38 @@ env_path = os.path.join(ROOT_DIR, 'secrets', '.env')
 print(f"Loading .env from: {env_path}")
 load_dotenv(dotenv_path=env_path)
 
-def extract_base_url(url: str) -> str:
-    """Extract the base URL from a given URL."""
-    from urllib.parse import urlparse
-    parsed_url = urlparse(url)
-    return f"{parsed_url.scheme}://{parsed_url.netloc}"
+def connect_to_mongodb():
+    """Connect to local MongoDB instance."""
+    try:
+        client = MongoClient('mongodb://localhost:27017/')
+        db = client['searchresults']
+        print("Successfully connected to MongoDB")
+        return db
+    except Exception as e:
+        print(f"Error connecting to MongoDB: {e}")
+        raise
+
+def save_to_mongodb(results: List[Dict[str, Any]], search_term: str):
+    """Save results to MongoDB with timestamp and search term."""
+    try:
+        db = connect_to_mongodb()
+        collection = db['searches']
+        
+        document = {
+            'search_term': search_term,
+            'timestamp': datetime.utcnow(),
+            'results': results
+        }
+        
+        result = collection.insert_one(document)
+        print(f"Saved to MongoDB with ID: {result.inserted_id}")
+        
+    except Exception as e:
+        print(f"Error saving to MongoDB: {e}")
+        raise
 
 def fetch_search_results(search_term: str, results_per_page: int) -> List[Dict[str, Any]]:
-    """
-    Fetch search results and return list of dicts with base_url and meta_tags.
-    Returns: List[Dict[str, Any]] where each dict has:
-        - base_url: str
-        - meta_tags: Dict containing title and description
-    """
+    """Fetch search results and return list of dicts with url and meta_tags."""
     api_key = os.getenv("APIFY_API_KEY")
     
     if not api_key:
@@ -66,7 +87,7 @@ def fetch_search_results(search_term: str, results_per_page: int) -> List[Dict[s
                         continue
                         
                     processed_results.append({
-                        "base_url": extract_base_url(url),
+                        "url": url,  # Now storing the full URL
                         "meta_tags": {
                             "title": result.get("title"),
                             "description": result.get("description"),
@@ -81,17 +102,29 @@ def fetch_search_results(search_term: str, results_per_page: int) -> List[Dict[s
         raise
 
 def main():
-    search_term = input("Enter the search term: ")
-    results_per_page = int(input("Enter the number of results per page: "))
+    try:
+        # Test MongoDB connection at startup
+        db = connect_to_mongodb()
+        print("MongoDB connection test successful")
+        
+        search_term = input("Enter the search term: ")
+        results_per_page = int(input("Enter the number of results per page: "))
 
-    # Fetch and process results in one step
-    results = fetch_search_results(search_term, results_per_page)
+        # Fetch and process results
+        results = fetch_search_results(search_term, results_per_page)
 
-    # Print results
-    print("\nResults:")
-    print(json.dumps(results, indent=4))
-    
-    return results  # Return results for potential further use
+        # Save to MongoDB
+        save_to_mongodb(results, search_term)
+
+        # Print results
+        print("\nResults:")
+        print(json.dumps(results, indent=4))
+        
+        return results
+
+    except Exception as e:
+        print(f"Error in main: {e}")
+        raise
 
 if __name__ == "__main__":
     main()

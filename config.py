@@ -15,7 +15,7 @@ ASST_FOR_STORAGE = os.getenv("ASST_FOR_STORAGE", "default_storage_assistant_id")
 ASST_FOR_WRITING = os.getenv("ASST_FOR_WRITING", "default_writing_assistant_id")
 VECTOR_STORE_ID = os.getenv("VECTOR_STORE_ID", "your_vector_store_id")
 
-APIFY_API_TOKEN = os.getenv("APIFY_API_TOKEN", "your_api_token_here")
+APIFY_API_KEY = os.getenv("APIFY_API_KEY", "your_api_key_here")
 
 
 

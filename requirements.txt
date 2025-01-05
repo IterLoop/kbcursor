@@ -9,9 +9,8 @@ python-dotenv>=1.0.0
 datetime
 pymongo>=4.6.0
 urllib3>=2.1.0
-logging>=0.5.1.2
 dataclasses>=0.6
-hashlib
 typing>=3.7.4.3
 selenium>=4.15.2
 scrapy>=2.11.0
+openai>=1.3.0

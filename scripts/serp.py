@@ -19,10 +19,15 @@ def connect_to_mongodb():
     """Connect to local MongoDB instance using credentials from .env file."""
     try:
         # Get MongoDB connection details from environment variables
-        mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
-        db_name = os.getenv('MONGODB_DB_NAME', 'searchresults')
+        mongo_url = os.getenv('MONGO_DB_URL')
+        if not mongo_url:
+            raise ValueError("MONGO_DB_URL environment variable is not set")
+            
+        db_name = os.getenv('MONGODB_DB_NAME1')
+        if not db_name:
+            raise ValueError("MONGODB_DB_NAME1 environment variable is not set")
         
-        client = MongoClient(mongo_uri)
+        client = MongoClient(mongo_url)
         db = client[db_name]
         print("Successfully connected to MongoDB")
         return db
@@ -81,7 +86,7 @@ def fetch_search_results(search_term: str, results_per_page: int) -> List[Dict[s
         processed_results = []
         for item in items:
             if isinstance(item, dict):
-                organic_results = item.get('organicResults', [])
+                organic_results = item.get('organicResults', []) or []
                 for result in organic_results:
                     if not isinstance(result, dict):
                         continue

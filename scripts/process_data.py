@@ -38,6 +38,12 @@ def setup_environment():
 
 def process_with_assistant(client, text_data):
     """Process text data using OpenAI Assistant"""
+    # Input validation
+    if text_data is None:
+        raise TypeError("Input text cannot be None")
+    if not text_data:
+        raise ValueError("Input text cannot be empty")
+
     # Use tokens instead of characters for more accurate chunking
     MAX_TOKENS = 3000  # Conservative limit for GPT-3.5
     CHUNK_OVERLAP = 500  # Tokens of overlap between chunks

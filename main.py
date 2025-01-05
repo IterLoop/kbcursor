@@ -1,10 +1,12 @@
 import os
 from pathlib import Path
-from scripts.serp import fetch_search_results, save_to_mongodb
+from scripts.serp import fetch_search_results
 from scripts.crawl import MultiCrawler
+from scripts.process_data import process_with_assistant
 from dotenv import load_dotenv
 import json
 import logging
+from openai import OpenAI
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +29,9 @@ def setup_environment():
         'APIFY_API_KEY',
         'MONGO_DB_URL',
         'MONGODB_DB_NAME1',
-        'MONGODB_DB_NAME2'
+        'MONGODB_DB_NAME2',
+        'OPENAI_API_KEY',
+        'CLEANTEXT_ASSISTANT_ID'
     ]
     
     missing_vars = [var for var in required_vars if not os.getenv(var)]
@@ -40,6 +44,9 @@ def search_and_crawl():
         # Setup environment
         setup_environment()
         
+        # Initialize OpenAI client
+        openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        
         # Get user input
         search_term = input("Enter your search term: ").strip()
         while True:
@@ -51,7 +58,7 @@ def search_and_crawl():
             except ValueError:
                 print("Please enter a valid number")
         
-        # Step 1: Fetch search results
+        # Step 1: Fetch search results (handles its own database operations)
         logger.info(f"Fetching search results for: '{search_term}'")
         search_results = fetch_search_results(search_term, results_count)
         
@@ -73,12 +80,14 @@ def search_and_crawl():
         # Step 3: Crawl each URL
         successful_crawls = 0
         failed_crawls = 0
+        processed_docs = 0
         
         for idx, result in enumerate(search_results, 1):
             url = result['url']
             logger.info(f"\nProcessing {idx}/{len(search_results)}: {url}")
             
             try:
+                # Crawl URL (handles its own database operations)
                 crawl_result = crawler.crawl_url(url)
                 if crawl_result:
                     successful_crawls += 1
@@ -86,6 +95,15 @@ def search_and_crawl():
                     logger.info(f"  Method: {crawl_result.method}")
                     logger.info(f"  Title: {crawl_result.title}")
                     logger.info(f"  Content length: {len(crawl_result.text)} characters")
+                    
+                    # Step 4: Process the crawled data (handles its own database operations)
+                    try:
+                        logger.info(f"Processing content with OpenAI Assistant...")
+                        process_with_assistant(openai_client, crawl_result.text, url)
+                        processed_docs += 1
+                        logger.info(f"✓ Successfully processed content for: {url}")
+                    except Exception as e:
+                        logger.error(f"✗ Error processing content for {url}: {e}")
                 else:
                     failed_crawls += 1
                     logger.error(f"✗ Failed to crawl: {url}")
@@ -94,11 +112,12 @@ def search_and_crawl():
                 logger.error(f"✗ Error crawling {url}: {e}")
         
         # Print summary
-        logger.info("\n=== Crawling Summary ===")
+        logger.info("\n=== Operation Summary ===")
         logger.info(f"Search term: '{search_term}'")
         logger.info(f"Total URLs processed: {len(search_results)}")
         logger.info(f"Successful crawls: {successful_crawls}")
         logger.info(f"Failed crawls: {failed_crawls}")
+        logger.info(f"Successfully processed documents: {processed_docs}")
         logger.info("=====================")
         
     except Exception as e:

@@ -96,12 +96,30 @@ def fetch_search_results(search_term: str, results_per_page: int) -> List[Dict[s
                         continue
                         
                     processed_results.append({
-                        "url": url,  # Now storing the full URL
+                        "url": url,
                         "meta_tags": {
                             "title": result.get("title"),
                             "description": result.get("description"),
                         }
                     })
+        
+        # Save results to MongoDB
+        try:
+            db = connect_to_mongodb()
+            collection = db['searches']
+            
+            document = {
+                'search_term': search_term,
+                'timestamp': datetime.utcnow(),
+                'results': processed_results
+            }
+            
+            result = collection.insert_one(document)
+            print(f"Saved search results to MongoDB with ID: {result.inserted_id}")
+            
+        except Exception as e:
+            print(f"Error saving search results to MongoDB: {e}")
+            raise
         
         print(f"Found {len(processed_results)} results")
         return processed_results
@@ -119,11 +137,8 @@ def main():
         search_term = input("Enter the search term: ")
         results_per_page = int(input("Enter the number of results per page: "))
 
-        # Fetch and process results
+        # Fetch and process results - this function handles database operations
         results = fetch_search_results(search_term, results_per_page)
-
-        # Save to MongoDB
-        save_to_mongodb(results, search_term)
 
         # Print results
         print("\nResults:")

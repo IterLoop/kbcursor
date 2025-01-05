@@ -13,6 +13,56 @@ from apify_client import ApifyClient
 from pymongo import MongoClient
 from tenacity import retry, stop_after_attempt, wait_exponential
 from dotenv import load_dotenv
+from sklearn.feature_extraction.text import TfidfVectorizer
+import numpy as np
+import re
+
+def is_content_relevant_to_title(title: str, content: str, threshold: float = 0.2) -> bool:
+    """
+    Checks whether the content is relevant to the given title by computing
+    a simple TF-IDF-based cosine similarity. If the similarity is below
+    `threshold`, it is considered 'off-topic'.
+
+    :param title: The article's title.
+    :param content: The full text content of the article.
+    :param threshold: Cosine similarity threshold. Higher means stricter.
+    :return: True if relevant, False if off-topic.
+    """
+    # Basic sanity checks
+    if not title or not content:
+        return True  # If we don't have enough info, assume it's okay or handle differently
+
+    # Optional: Basic text cleanup (remove special characters, extra spaces, etc.)
+    def basic_clean(text):
+        text = re.sub(r'[\r\n]+', ' ', text)
+        text = re.sub(r'[^\w\s]', '', text)
+        return text.lower().strip()
+
+    title_clean = basic_clean(title)
+    content_clean = basic_clean(content)
+
+    # TF-IDF vectorization
+    corpus = [title_clean, content_clean]
+    vectorizer = TfidfVectorizer()
+    vectors = vectorizer.fit_transform(corpus).toarray()
+
+    if len(vectorizer.get_feature_names_out()) == 0:
+        # If there's no overlap in vocabulary at all, consider it off-topic 
+        # or handle it differently
+        return False
+
+    # vectors[0] -> TF-IDF for title, vectors[1] -> TF-IDF for content
+    # Cosine similarity
+    title_vec = vectors[0]
+    content_vec = vectors[1]
+
+    similarity = np.dot(title_vec, content_vec) / (
+        np.linalg.norm(title_vec) * np.linalg.norm(content_vec)
+        + 1e-9  # Avoid division by zero
+    )
+
+    # Return True if above threshold, else False
+    return similarity >= threshold
 
 # Define root directory
 ROOT_DIR = Path(__file__).parent.parent
@@ -253,18 +303,23 @@ class MultiCrawler:
                 "metadata": result.metadata,
                 "crawl_time": result.crawl_time,
                 "method": result.method,
-                "created_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
                 "word_count": len(result.text.split()),
                 "status": "success"
             }
             
-            # Insert into scraped_data collection
-            insert_result = self.collection.insert_one(document)
+            # Update or insert into scraped_data collection
+            update_result = self.collection.update_one(
+                {"url": result.url},
+                {"$set": document},
+                upsert=True
+            )
             
-            if not insert_result.inserted_id:
-                raise Exception("Failed to insert document")
+            if not update_result.upserted_id and update_result.modified_count == 0:
+                raise Exception("Failed to update/insert document")
                 
-            logger.info(f"Successfully stored results in MongoDB with ID: {insert_result.inserted_id}")
+            document_id = update_result.upserted_id or self.collection.find_one({"url": result.url})["_id"]
+            logger.info(f"Successfully stored results in MongoDB with ID: {document_id}")
             logger.info(f"Database: {self.crawl_db.name}, Collection: {self.collection.name}")
             
             # Update URL tracking
@@ -273,7 +328,7 @@ class MultiCrawler:
                 "last_crawl_date": result.crawl_time,
                 "last_crawl_method": result.method,
                 "success": True,
-                "document_id": insert_result.inserted_id,
+                "document_id": document_id,
                 "updated_at": datetime.now(UTC)
             }
             
@@ -287,11 +342,11 @@ class MultiCrawler:
             logger.info(f"Updated URL tracking for: {result.url}")
             
             # Verify the data was stored
-            stored_doc = self.collection.find_one({"_id": insert_result.inserted_id})
+            stored_doc = self.collection.find_one({"_id": document_id})
             if not stored_doc:
                 raise Exception("Document not found after insertion")
                 
-            return insert_result.inserted_id
+            return document_id
             
         except Exception as e:
             logger.error(f"Failed to store results in MongoDB for URL {result.url}: {e}")
@@ -327,30 +382,69 @@ class MultiCrawler:
             logger.warning(f"Skipping Google search URL: {url}")
             return None
 
-        # Define crawling methods with their names
-        crawlers = [
+        # Separate free crawlers and Apify
+        free_crawlers = [
             ("BeautifulSoup Static", self._static_crawl),
             ("Playwright Dynamic", self._js_crawl),
             ("Selenium Fallback", self._selenium_crawl),
-            ("Scrapy Fallback", self._scrapy_crawl),
-            ("Apify Website Content", self._apify_crawl)
+            ("Scrapy Fallback", self._scrapy_crawl)
         ]
 
-        # Try each crawler in sequence
-        for crawler_name, crawler_method in crawlers:
+        # Try each free crawler first
+        for crawler_name, crawler_method in free_crawlers:
             logger.info(f"Attempting {crawler_name} crawler for: {url}")
             try:
                 result = crawler_method(url)
                 if result and len(result.text) > 100:
                     logger.info(f"Successfully crawled with {crawler_name}")
-                    self._store_result(result)
-                    self._update_url_tracking(url, result)
-                    return result
+                    
+                    # Check if title and text are coherent using NLP
+                    if result.title and result.text:
+                        if is_content_relevant_to_title(result.title, result.text):
+                            # Content is relevant, store and return
+                            try:
+                                document_id = self._store_result(result)
+                                self._update_url_tracking(url, result)
+                                logger.info(f"Successfully stored crawl result in MongoDB with ID: {document_id}")
+                                return result
+                            except Exception as e:
+                                logger.error(f"Failed to store crawl result in MongoDB: {e}")
+                                raise
+                        else:
+                            logger.warning(
+                                f"Content for '{url}' from {crawler_name} is off-topic relative to '{result.title}'. "
+                                "Trying next crawler."
+                            )
+                            continue
+                    else:
+                        logger.warning(f"{crawler_name} crawler failed to get title or text")
                 else:
                     logger.warning(f"{crawler_name} crawler failed to get sufficient content")
             except Exception as e:
                 logger.error(f"{crawler_name} crawler failed with error: {e}")
                 continue
+
+        # If all free crawlers failed or got irrelevant content, try Apify
+        logger.info("All free crawlers failed or got irrelevant content. Attempting Apify crawler.")
+        try:
+            apify_result = self._apify_crawl(url)
+            if apify_result and apify_result.title and apify_result.text:
+                if is_content_relevant_to_title(apify_result.title, apify_result.text):
+                    logger.info("Apify crawler retrieved relevant content")
+                    try:
+                        document_id = self._store_result(apify_result)
+                        self._update_url_tracking(url, apify_result)
+                        logger.info(f"Successfully stored Apify result in MongoDB with ID: {document_id}")
+                        return apify_result
+                    except Exception as e:
+                        logger.error(f"Failed to store Apify result in MongoDB: {e}")
+                        raise
+                else:
+                    logger.warning("Apify crawler also failed to get relevant content")
+            else:
+                logger.warning("Apify crawler failed to get sufficient content")
+        except Exception as e:
+            logger.error(f"Apify crawler failed with error: {e}")
 
         logger.error(f"All crawling methods failed for: {url}")
         self._record_crawl_failure(url)

@@ -1,8 +1,13 @@
+import os
+import sys
+
+# Add project root to Python path - this must come before other imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from pymongo import MongoClient
 from bson import ObjectId
-import os
 from dotenv import load_dotenv
-from process_data import process_with_assistant
+from scripts.process_data import process_with_assistant
 from openai import OpenAI
 import logging
 import json
@@ -24,7 +29,7 @@ def test_single_document():
     openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
     
     # Get specific document
-    doc_id = ObjectId('67784a7e3fb9c3cc2c128790')
+    doc_id = ObjectId('67784a7f3fb9c3cc2c128791')
     document = source_db['scraped_data'].find_one({"_id": doc_id})
     
     if document:

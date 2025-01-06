@@ -1,14 +1,12 @@
 import os
 from pathlib import Path
 from scripts.serp import fetch_search_results
-from scripts.crawl import MultiCrawler
+from scripts.crawlers.multi_crawler import MultiCrawler
 from scripts.process_data import process_with_assistant
 from dotenv import load_dotenv
 import json
 import logging
 from openai import OpenAI
-import time
-from typing import List, Dict
 from datetime import datetime
 
 # Setup logging
@@ -16,11 +14,14 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('search_runs.log'),
+        logging.FileHandler('search_runs.log', mode='a', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Add immediate test message
+logger.info("Logging system initialized")
 
 def setup_environment():
     """Setup environment variables and verify configuration"""
@@ -48,7 +49,7 @@ def setup_environment():
     if missing_vars:
         raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
-def load_runlist() -> List[Dict]:
+def load_runlist() -> list:
     """Load the runlist from JSON file"""
     runlist_path = Path(__file__).parent / 'runlist.json'
     if not runlist_path.exists():
@@ -62,6 +63,7 @@ def search_and_crawl():
     try:
         # Setup environment
         setup_environment()
+        ROOT_DIR = Path(__file__).parent
         
         # Add run start timestamp
         run_start_time = datetime.now()
@@ -70,54 +72,55 @@ def search_and_crawl():
         # Initialize OpenAI client
         openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         
-        # Load runlist instead of getting user input
+        # Initialize crawler
+        crawler = MultiCrawler(
+            mongodb_url=os.getenv('MONGO_DB_URL'),
+            serp_db_name=os.getenv('MONGODB_DB_NAME1'),
+            crawl_db_name=os.getenv('MONGODB_DB_NAME2'),
+            proxy_file_path=str(ROOT_DIR / 'other' / 'proxies.txt'),
+            apify_api_key=os.getenv('APIFY_API_KEY')
+        )
+        
+        # Load runlist
         runlist = load_runlist()
         total_searches = len(runlist)
         
         for search_idx, search_item in enumerate(runlist, 1):
             search_term = search_item['search_term']
-            results_count = search_item.get('results_count', 10)  # Default to 10 if not specified
+            results_count = search_item.get('results_count', 10)
             
             # Add search start timestamp
             search_start_time = datetime.now()
-            logger.info(f"=== Search Run {search_idx}/{total_searches} Started at {search_start_time} ===")
-            
-            logger.info(f"\n=== Processing Search {search_idx}/{total_searches} ===")
+            logger.info(f"\n=== Search Run {search_idx}/{total_searches} Started at {search_start_time} ===")
             logger.info(f"Search term: '{search_term}'")
             logger.info(f"Results count: {results_count}")
             
-            # Step 1: Fetch search results (handles its own database operations)
-            logger.info(f"Fetching search results for: '{search_term}'")
-            search_results = fetch_search_results(search_term, results_count)
-            
-            # Save results to file for crawler
-            results_file = Path(__file__).parent / 'serp_results.json'
-            with open(results_file, 'w') as f:
-                json.dump(search_results, f)
-            
-            logger.info(f"Found {len(search_results)} URLs to crawl")
-            
-            # Initialize crawler
-            crawler = MultiCrawler(
-                apify_api_key=os.getenv('APIFY_API_KEY'),
-                mongodb_url=os.getenv('MONGO_DB_URL'),
-                serp_db_name=os.getenv('MONGODB_DB_NAME1'),
-                crawl_db_name=os.getenv('MONGODB_DB_NAME2')
-            )
-            
-            # Crawl filtered URLs
-            crawler.crawl_urls(search_results, search_term)
-            
-            # Enhanced summary with timestamps
-            logger.info("\n=== Search Run Summary ===")
-            logger.info(f"Search term: '{search_term}'")
-            logger.info(f"Start time: {search_start_time}")
-            logger.info(f"End time: {datetime.now()}")
-            logger.info(f"Total URLs processed: {len(search_results)}")
-            logger.info(f"Successful crawls: {crawler.successful_crawls}")
-            logger.info(f"Failed crawls: {crawler.failed_crawls}")
-            logger.info(f"Successfully processed documents: {crawler.processed_docs}")
-            logger.info("=====================")
+            try:
+                # Step 1: Fetch search results
+                logger.info(f"Fetching search results for: '{search_term}'")
+                search_results = fetch_search_results(search_term, results_count)
+                
+                # Step 2: Crawl URLs
+                logger.info(f"Starting crawl for {len(search_results)} URLs")
+                crawler.crawl_urls(search_results, search_term)
+                
+                # Step 3: Process crawled content
+                logger.info("Processing crawled content with OpenAI Assistant")
+                process_with_assistant(openai_client, process_all=True)
+                
+                # Log search completion
+                search_end_time = datetime.now()
+                search_duration = search_end_time - search_start_time
+                logger.info(f"\n=== Search Run {search_idx} Completed ===")
+                logger.info(f"Duration: {search_duration}")
+                logger.info(f"URLs crawled: {len(search_results)}")
+                logger.info(f"Successful crawls: {crawler.successful_crawls}")
+                logger.info(f"Failed crawls: {crawler.failed_crawls}")
+                logger.info("================================")
+                
+            except Exception as e:
+                logger.error(f"Error processing search term '{search_term}': {e}")
+                continue
         
         # Add run completion summary
         run_end_time = datetime.now()

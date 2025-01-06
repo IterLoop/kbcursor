@@ -1,8 +1,82 @@
 [
-
     {
-        "search_term": "intitle:\"AI in manufacturing\" (benefits OR challenges) 2023..2025",
-        "results_count": 10
+        "search_term": "\"supply chain strategic planning\" 2024..2025 (frameworks OR roadmaps OR KPIs)",
+        "results_count": 15,
+        "focus": "High-level strategic planning frameworks for enterprises."
+    },
+    {
+        "search_term": "\"AI in supply chain\" 2024..2025 (case study OR implementation OR ROI)",
+        "results_count": 12,
+        "focus": "Detailed success stories and return-on-investment analyses for AI in supply chains."
+    },
+    {
+        "search_term": "\"predictive maintenance\" AND \"industrial AI\" 2024..2025 (business value OR cost reduction OR impact)",
+        "results_count": 10,
+        "focus": "Key case studies and impact analysis for predictive maintenance applications in industries."
+    },
+    {
+        "search_term": "\"digital twin\" AND \"supply chain\" 2024..2025 (efficiency OR ROI OR feasibility)",
+        "results_count": 12,
+        "focus": "Emerging use cases for digital twins in supply chain visualization and operational efficiency."
+    },
+    {
+        "search_term": "\"generative AI\" AND \"supply chain\" 2024..2025 (challenges OR opportunities OR frameworks)",
+        "results_count": 8,
+        "focus": "Exploration of generative AI's potential and challenges in supply chain transformation."
+    },
+    {
+        "search_term": "\"AI in sustainability\" AND \"manufacturing\" 2024..2025 (GHG reduction OR waste reduction)",
+        "results_count": 10,
+        "focus": "Sustainability-focused AI applications, particularly in emission and waste reduction."
+    },
+    {
+        "search_term": "\"inventory optimization\" AND \"AI\" 2024..2025 (case study OR best practices)",
+        "results_count": 12,
+        "focus": "Techniques and success metrics for AI-driven inventory optimization."
+    },
+    {
+        "search_term": "\"autonomous supply chains\" 2024..2025 (trends OR challenges OR adoption barriers)",
+        "results_count": 8,
+        "focus": "Understanding autonomous supply chains and adoption roadblocks."
+    },
+    {
+        "search_term": "\"robotics in logistics\" AND \"AI\" 2024..2025 (case studies OR efficiency gains)",
+        "results_count": 12,
+        "focus": "Adoption and ROI of robotics in logistics operations."
+    },
+    {
+        "search_term": "\"lights out production\" 2024..2025 (trends OR feasibility studies OR business value)",
+        "results_count": 8,
+        "focus": "Feasibility studies and emerging business cases for lights-out manufacturing."
+    },
+    {
+        "search_term": "\"supplier risk management\" AND \"AI\" 2024..2025 (efficiency OR case study OR impact)",
+        "results_count": 10,
+        "focus": "AI-driven tools and frameworks for supplier risk assessment."
+    },
+    {
+        "search_term": "\"connected factory worker\" AND \"AI\" 2024..2025 (trends OR opportunities OR success stories)",
+        "results_count": 8,
+        "focus": "Integration of AI with factory operations and workforce optimization."
+    },
+    {
+        "search_term": "\"predictive analytics\" AND \"supply chain\" 2024..2025 (use cases OR frameworks OR metrics)",
+        "results_count": 12,
+        "focus": "Operational metrics and frameworks for predictive analytics in supply chains."
+    },
+    {
+        "search_term": "\"autonomous trucks\" AND \"logistics\" 2024..2025 (case studies OR feasibility OR adoption barriers)",
+        "results_count": 8,
+        "focus": "Real-world studies on autonomous trucks and logistics feasibility."
+    },
+    {
+        "search_term": "\"supply chain resilience\" 2024..2025 (antifragility OR risk management OR strategy)",
+        "results_count": 12,
+        "focus": "Strategies for building antifragile supply chains and mitigating global disruptions."
+    },
+    {
+        "search_term": "\"AI-driven dashboards\" AND \"supply chain metrics\" 2024..2025 (design OR adoption OR impact)",
+        "results_count": 10,
+        "focus": "Designing AI-powered dashboards to align with enterprise KPIs and goals."
     }
- 
 ]

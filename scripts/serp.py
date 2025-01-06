@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import List, Dict, Any
 from pymongo import MongoClient
 from datetime import datetime
-from .crawl import MultiCrawler
 
 # Get the project root directory (parent of scripts folder)
 ROOT_DIR = Path(__file__).parent.parent
@@ -109,23 +108,7 @@ def fetch_search_results(search_term: str, results_per_page: int) -> List[Dict[s
                     })
         
         # Save results to MongoDB
-        try:
-            db = connect_to_mongodb()
-            collection = db['searches']
-            
-            document = {
-                'search_term': search_term,
-                'timestamp': datetime.utcnow(),
-                'results': processed_results
-            }
-            
-            result = collection.insert_one(document)
-            print(f"Saved search results to MongoDB with ID: {result.inserted_id}")
-            
-        except Exception as e:
-            print(f"Error saving search results to MongoDB: {e}")
-            raise
-        
+        save_to_mongodb(processed_results, search_term)
         print(f"Found {len(processed_results)} results")
         return processed_results
 
@@ -142,23 +125,12 @@ def main():
         search_term = input("Enter the search term: ")
         results_per_page = int(input("Enter the number of results per page: "))
 
-        # Fetch and process results - this function handles database operations
+        # Fetch and process results
         results = fetch_search_results(search_term, results_per_page)
 
         # Print results
         print("\nResults:")
         print(json.dumps(results, indent=4))
-        
-        # Initialize crawler with environment variables
-        crawler = MultiCrawler(
-            apify_api_key=os.getenv('APIFY_API_KEY'),
-            mongodb_url=os.getenv('MONGO_DB_URL'),
-            serp_db_name=os.getenv('MONGODB_DB_NAME1'),
-            crawl_db_name=os.getenv('MONGODB_DB_NAME2')
-        )
-        
-        # Crawl the URLs
-        crawler.crawl_urls(results, search_term)
         
         return results
 

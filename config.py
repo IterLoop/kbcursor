@@ -5,17 +5,22 @@ from dotenv import load_dotenv
 # Load environment variables from secrets/.env
 load_dotenv(dotenv_path="secrets/.env")
 
-# Now retrieve environment variables
+# MongoDB Configuration
+MONGO_DB_URL = os.getenv("MONGO_DB_URL", "mongodb://localhost:27017/")
+
+# Database Names
+SEARCH_DB = os.getenv("MONGODB_DB_NAME1", "search_data")
+CONTENT_DB = os.getenv("MONGODB_DB_NAME2", "content_data")
+
+# Collection Names
+SEARCH_COLLECTION = "searches"
+RAW_CONTENT_COLLECTION = "raw_content"
+PROCESSED_CONTENT_COLLECTION = "processed_content"
+
+# API Keys
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY")
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "YOUR_YOUTUBE_API_KEY")
-MONGO_DB_URL = os.getenv("MONGO_DB_URL", "YOUR_MONGO_DB_URL")
-
-# Assistant IDs
-ASST_FOR_STORAGE = os.getenv("ASST_FOR_STORAGE", "default_storage_assistant_id")
-ASST_FOR_WRITING = os.getenv("ASST_FOR_WRITING", "default_writing_assistant_id")
-VECTOR_STORE_ID = os.getenv("VECTOR_STORE_ID", "your_vector_store_id")
-
 APIFY_API_KEY = os.getenv("APIFY_API_KEY", "your_api_key_here")
+CLEANTEXT_ASSISTANT_ID = os.getenv("CLEANTEXT_ASSISTANT_ID", "your_assistant_id")
 
 
 

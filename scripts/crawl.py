@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 import re
+from config import MONGO_DB_URL, SEARCH_DB, CONTENT_DB, RAW_CONTENT_COLLECTION
+from tools.mongo import MongoValidator, RAW_CONTENT_SCHEMA
 
 def is_content_relevant_to_title(title: str, content: str, threshold: float = 0.2) -> bool:
     """
@@ -100,18 +102,17 @@ class CrawlResult:
     method: str
 
 class MultiCrawler:
-    def __init__(self, apify_api_key: str, mongodb_url: str, serp_db_name: str, crawl_db_name: str):
+    def __init__(self, apify_api_key: str):
         try:
             self.apify_client = ApifyClient(apify_api_key)
-            self.mongo_client = MongoClient(mongodb_url)
+            self.mongo_client = MongoClient(MONGO_DB_URL)
             
             # Initialize both databases
-            self.serp_db = self.mongo_client[serp_db_name]
-            self.crawl_db = self.mongo_client[crawl_db_name]
+            self.serp_db = self.mongo_client[SEARCH_DB]
+            self.crawl_db = self.mongo_client[CONTENT_DB]
             
-            # Collections
-            self.collection = self.crawl_db['scraped_data']
-            self.url_tracking = self.crawl_db['url_tracking']
+            # Collections - updated to new structure
+            self.collection = self.crawl_db[RAW_CONTENT_COLLECTION]
             
             # Verify connections first
             self._verify_connections()
@@ -136,8 +137,8 @@ class MultiCrawler:
             
             # Log database and collection names
             logger.info(f"Using SERP database: {self.serp_db.name}")
-            logger.info(f"Using Crawl database: {self.crawl_db.name}")
-            logger.info(f"Collections: scraped_data, url_tracking")
+            logger.info(f"Using Content database: {self.crawl_db.name}")
+            logger.info(f"Using collection: {RAW_CONTENT_COLLECTION}")
             
             # Verify collections exist
             collections = self.crawl_db.list_collection_names()
@@ -148,36 +149,28 @@ class MultiCrawler:
             raise
 
     def _setup_indexes(self):
-        """Setup necessary database indexes to match existing structure"""
+        """Setup necessary database indexes"""
         try:
-            # Indexes for scraped_data collection
+            # Indexes for raw_content collection
             self.collection.create_index(
                 [("url", 1)], 
+                unique=True,
                 name="url_1"
             )
             self.collection.create_index(
                 [("crawl_time", 1)], 
                 name="crawl_time_1"
             )
-            
-            # Indexes for url_tracking collection
-            self.url_tracking.create_index(
-                [("url", 1)], 
-                unique=True,
-                name="url_1"
-            )
-            self.url_tracking.create_index(
-                [("last_crawl_date", 1)], 
-                name="last_crawl_date_1"
+            self.collection.create_index(
+                [("content_hash", 1)], 
+                name="content_hash_1"
             )
             
             logger.info("MongoDB indexes verified")
             
             # Verify indexes match expected structure
-            scraped_indexes = list(self.collection.list_indexes())
-            tracking_indexes = list(self.url_tracking.list_indexes())
-            logger.debug(f"Scraped data indexes: {[idx['name'] for idx in scraped_indexes]}")
-            logger.debug(f"URL tracking indexes: {[idx['name'] for idx in tracking_indexes]}")
+            content_indexes = list(self.collection.list_indexes())
+            logger.debug(f"Raw content indexes: {[idx['name'] for idx in content_indexes]}")
             
         except Exception as e:
             logger.error(f"Index verification failed: {e}")
@@ -220,39 +213,27 @@ class MultiCrawler:
         Returns: (should_crawl: bool, existing_data: Optional[dict])
         """
         try:
-            # Check URL tracking collection
-            tracking_info = self.url_tracking.find_one({"url": url})
+            # Check raw_content collection for existing data
+            existing_doc = self.collection.find_one({"url": url})
             
-            if not tracking_info:
+            if not existing_doc:
                 logger.info(f"URL {url} has never been crawled")
                 return True, None
             
-            last_crawl_date = tracking_info['last_crawl_date']
+            last_crawl_date = existing_doc['crawl_time']
             
             # Check if minimum crawl interval has passed (default: 7 days)
             min_interval = timedelta(days=7)
             if datetime.now(UTC) - last_crawl_date < min_interval:
                 logger.info(f"URL {url} was recently crawled")
-                
-                # Get existing data
-                existing_data = self.collection.find_one({
-                    "url": url,
-                    "crawl_time": last_crawl_date
-                })
-                return False, existing_data
+                return False, existing_doc
             
             # Check if content has been modified
             last_modified = self._check_last_modified(url)
             
             if last_modified and last_modified <= last_crawl_date:
                 logger.info(f"Content for {url} hasn't changed since last crawl")
-                
-                # Get existing data
-                existing_data = self.collection.find_one({
-                    "url": url,
-                    "crawl_time": last_crawl_date
-                })
-                return False, existing_data
+                return False, existing_doc
             
             logger.info(f"Content for {url} needs to be recrawled")
             return True, None
@@ -261,95 +242,110 @@ class MultiCrawler:
             logger.error(f"Error checking crawl status for {url}: {e}")
             return True, None  # Crawl on error to be safe
 
-    def _update_url_tracking(self, url: str, result: CrawlResult):
-        """Update URL tracking information"""
-        tracking_data = {
-            "url": url,
-            "last_crawl_date": result.crawl_time,
-            "last_crawl_method": result.method,
-            "content_hash": self._get_url_hash(result.text),
-            "title": result.title,
-            "success": True
-        }
-        
-        self.url_tracking.update_one(
-            {"url": url},
-            {"$set": tracking_data},
-            upsert=True
-        )
-
-    def _record_crawl_failure(self, url: str):
-        """Record failed crawl attempt"""
-        tracking_data = {
-            "url": url,
-            "last_attempt_date": datetime.now(UTC),
-            "success": False
-        }
-        
-        self.url_tracking.update_one(
-            {"url": url},
-            {"$set": tracking_data},
-            upsert=True
-        )
-
     def _store_result(self, result: CrawlResult):
         """Store crawl result in MongoDB with proper error handling"""
         try:
+            # Get existing document if any
+            existing_doc = self.collection.find_one({"url": result.url})
+            current_time = datetime.now(UTC)
+            
+            # Prepare metadata
+            crawl_meta = {
+                "method": result.method,
+                "crawl_time": current_time,
+                "updated_at": current_time,
+                "content_hash": self._get_url_hash(result.text),
+                "word_count": len(result.text.split()),
+                "status": "success",
+                "attempts": (existing_doc.get("metadata", {}).get("crawl_meta", {}).get("attempts", 0) + 1) if existing_doc else 1,
+                "last_success": current_time,
+                "last_failure": existing_doc.get("metadata", {}).get("crawl_meta", {}).get("last_failure"),
+                "failure_reason": None
+            }
+            
             # Prepare document for MongoDB
             document = {
                 "url": result.url,
                 "title": result.title,
                 "text": result.text,
-                "metadata": result.metadata,
-                "crawl_time": result.crawl_time,
+                "metadata": {
+                    "source_meta": result.metadata,  # Original metadata from source
+                    "crawl_meta": crawl_meta
+                },
                 "method": result.method,
-                "updated_at": datetime.now(UTC),
+                "crawl_time": current_time,
+                "updated_at": current_time,
                 "word_count": len(result.text.split()),
-                "status": "success"
+                "status": "success",
+                "content_hash": self._get_url_hash(result.text)
             }
             
-            # Update or insert into scraped_data collection
-            update_result = self.collection.update_one(
+            # Validate document against schema
+            document = MongoValidator.prepare_for_mongodb(document, RAW_CONTENT_SCHEMA)
+            
+            # Upsert the document
+            self.collection.update_one(
                 {"url": result.url},
                 {"$set": document},
                 upsert=True
             )
             
-            if not update_result.upserted_id and update_result.modified_count == 0:
-                raise Exception("Failed to update/insert document")
-                
-            document_id = update_result.upserted_id or self.collection.find_one({"url": result.url})["_id"]
-            logger.info(f"Successfully stored results in MongoDB with ID: {document_id}")
-            logger.info(f"Database: {self.crawl_db.name}, Collection: {self.collection.name}")
+            logger.info(f"Successfully stored/updated content for {result.url}")
             
-            # Update URL tracking
-            tracking_data = {
-                "url": result.url,
-                "last_crawl_date": result.crawl_time,
-                "last_crawl_method": result.method,
-                "success": True,
-                "document_id": document_id,
-                "updated_at": datetime.now(UTC)
+        except Exception as e:
+            logger.error(f"Error storing result for {result.url}: {e}")
+            raise
+
+    def _record_crawl_failure(self, url: str, reason: str = "Unknown error"):
+        """Record failed crawl attempt with metadata"""
+        try:
+            # Get existing document if any
+            existing_doc = self.collection.find_one({"url": url})
+            current_time = datetime.now(UTC)
+            
+            # Prepare metadata
+            crawl_meta = {
+                "method": "failed",
+                "crawl_time": current_time,
+                "updated_at": current_time,
+                "content_hash": None,
+                "word_count": 0,
+                "status": "failed",
+                "attempts": (existing_doc.get("metadata", {}).get("crawl_meta", {}).get("attempts", 0) + 1) if existing_doc else 1,
+                "last_success": existing_doc.get("metadata", {}).get("crawl_meta", {}).get("last_success"),
+                "last_failure": current_time,
+                "failure_reason": reason
             }
             
-            # Update tracking collection
-            self.url_tracking.update_one(
-                {"url": result.url},
+            tracking_data = {
+                "url": url,
+                "title": None,
+                "text": "",
+                "metadata": {
+                    "source_meta": {},
+                    "crawl_meta": crawl_meta
+                },
+                "method": "failed",
+                "crawl_time": current_time,
+                "updated_at": current_time,
+                "word_count": 0,
+                "status": "failed",
+                "content_hash": None
+            }
+            
+            # Validate document against schema
+            tracking_data = MongoValidator.prepare_for_mongodb(tracking_data, RAW_CONTENT_SCHEMA)
+            
+            self.collection.update_one(
+                {"url": url},
                 {"$set": tracking_data},
                 upsert=True
             )
             
-            logger.info(f"Updated URL tracking for: {result.url}")
-            
-            # Verify the data was stored
-            stored_doc = self.collection.find_one({"_id": document_id})
-            if not stored_doc:
-                raise Exception("Document not found after insertion")
-                
-            return document_id
+            logger.info(f"Recorded crawl failure for {url}: {reason}")
             
         except Exception as e:
-            logger.error(f"Failed to store results in MongoDB for URL {result.url}: {e}")
+            logger.error(f"Error recording crawl failure for {url}: {e}")
             raise
 
     def crawl_url(self, url: str) -> Optional[CrawlResult]:
@@ -395,7 +391,7 @@ class MultiCrawler:
             logger.info(f"Attempting {crawler_name} crawler for: {url}")
             try:
                 result = crawler_method(url)
-                if result and len(result.text) > 100:
+                if result and result.text and len(result.text) > 100:
                     logger.info(f"Successfully crawled with {crawler_name}")
                     
                     # Check if title and text are coherent using NLP
@@ -403,13 +399,12 @@ class MultiCrawler:
                         if is_content_relevant_to_title(result.title, result.text):
                             # Content is relevant, store and return
                             try:
-                                document_id = self._store_result(result)
-                                self._update_url_tracking(url, result)
-                                logger.info(f"Successfully stored crawl result in MongoDB with ID: {document_id}")
+                                self._store_result(result)
+                                logger.info(f"Successfully stored crawl result in MongoDB")
                                 return result
                             except Exception as e:
                                 logger.error(f"Failed to store crawl result in MongoDB: {e}")
-                                raise
+                                continue
                         else:
                             logger.warning(
                                 f"Content for '{url}' from {crawler_name} is off-topic relative to '{result.title}'. "
@@ -428,19 +423,17 @@ class MultiCrawler:
         logger.info("All free crawlers failed or got irrelevant content. Attempting Apify crawler.")
         try:
             apify_result = self._apify_crawl(url)
-            if apify_result and apify_result.title and apify_result.text:
-                if is_content_relevant_to_title(apify_result.title, apify_result.text):
-                    logger.info("Apify crawler retrieved relevant content")
+            if apify_result and apify_result.text:
+                if not apify_result.title or is_content_relevant_to_title(apify_result.title, apify_result.text):
+                    logger.info("Apify crawler retrieved content")
                     try:
-                        document_id = self._store_result(apify_result)
-                        self._update_url_tracking(url, apify_result)
-                        logger.info(f"Successfully stored Apify result in MongoDB with ID: {document_id}")
+                        self._store_result(apify_result)
+                        logger.info("Successfully stored Apify result in MongoDB")
                         return apify_result
                     except Exception as e:
                         logger.error(f"Failed to store Apify result in MongoDB: {e}")
-                        raise
                 else:
-                    logger.warning("Apify crawler also failed to get relevant content")
+                    logger.warning("Apify crawler content appears off-topic")
             else:
                 logger.warning("Apify crawler failed to get sufficient content")
         except Exception as e:
@@ -689,10 +682,10 @@ class MultiCrawler:
     def verify_storage(self, url: str):
         """Verify data storage for a URL"""
         try:
-            # Check scraped_data collection
+            # Check raw_content collection
             doc = self.collection.find_one({"url": url})
             if doc:
-                logger.info(f"Found document in scraped_data:")
+                logger.info(f"Found document in raw_content:")
                 logger.info(f"Title: {doc.get('title')}")
                 logger.info(f"Method: {doc.get('method')}")
                 logger.info(f"Word count: {doc.get('word_count')}")
@@ -700,7 +693,7 @@ class MultiCrawler:
                 logger.error(f"No document found for URL: {url}")
             
             # Check url_tracking collection
-            tracking = self.url_tracking.find_one({"url": url})
+            tracking = self.collection.find_one({"url": url})
             if tracking:
                 logger.info(f"Found tracking data:")
                 logger.info(f"Last crawl: {tracking.get('last_crawl_date')}")
@@ -733,10 +726,7 @@ def main():
     
     # Initialize crawler
     crawler = MultiCrawler(
-        apify_api_key=env_vars['APIFY_API_KEY'],
-        mongodb_url=env_vars['MONGO_DB_URL'],
-        serp_db_name=env_vars['MONGODB_DB_NAME1'],
-        crawl_db_name=env_vars['MONGODB_DB_NAME2']
+        apify_api_key=env_vars['APIFY_API_KEY']
     )
     
     # Get URLs from SERP results or user input

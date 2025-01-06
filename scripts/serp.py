@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import List, Dict, Any
 from pymongo import MongoClient
 from datetime import datetime
+from config import MONGO_DB_URL, SEARCH_DB, SEARCH_COLLECTION
+from tools.mongo import MongoValidator, SEARCH_SCHEMA
 
 # Get the project root directory (parent of scripts folder)
 ROOT_DIR = Path(__file__).parent.parent
@@ -18,34 +20,38 @@ load_dotenv(dotenv_path=env_path)
 def connect_to_mongodb():
     """Connect to local MongoDB instance using credentials from .env file."""
     try:
-        # Get MongoDB connection details from environment variables
-        mongo_url = os.getenv('MONGO_DB_URL')
-        if not mongo_url:
-            raise ValueError("MONGO_DB_URL environment variable is not set")
+        # Get MongoDB connection details from config
+        if not MONGO_DB_URL:
+            raise ValueError("MONGO_DB_URL is not set")
             
-        db_name = os.getenv('MONGODB_DB_NAME1')
-        if not db_name:
-            raise ValueError("MONGODB_DB_NAME1 environment variable is not set")
+        if not SEARCH_DB:
+            raise ValueError("SEARCH_DB is not set")
         
-        client = MongoClient(mongo_url)
-        db = client[db_name]
+        client = MongoClient(MONGO_DB_URL)
+        db = client[SEARCH_DB]
         print("Successfully connected to MongoDB")
         return db
     except Exception as e:
         print(f"Error connecting to MongoDB: {e}")
         raise
 
-def save_to_mongodb(results: List[Dict[str, Any]], search_term: str):
+def save_to_mongodb(results: List[Dict[str, Any]], query_term: str):
     """Save results to MongoDB with timestamp and search term."""
     try:
         db = connect_to_mongodb()
-        collection = db['searches']
+        collection = db[SEARCH_COLLECTION]
         
         document = {
-            'search_term': search_term,
+            'query_term': query_term,
             'timestamp': datetime.utcnow(),
-            'results': results
+            'results': [{
+                'url': result['url'],
+                'meta_tags': result.get('meta_tags', {})
+            } for result in results]
         }
+        
+        # Validate document against schema
+        document = MongoValidator.prepare_for_mongodb(document, SEARCH_SCHEMA)
         
         result = collection.insert_one(document)
         print(f"Saved to MongoDB with ID: {result.inserted_id}")
@@ -104,22 +110,7 @@ def fetch_search_results(search_term: str, results_per_page: int) -> List[Dict[s
                     })
         
         # Save results to MongoDB
-        try:
-            db = connect_to_mongodb()
-            collection = db['searches']
-            
-            document = {
-                'search_term': search_term,
-                'timestamp': datetime.utcnow(),
-                'results': processed_results
-            }
-            
-            result = collection.insert_one(document)
-            print(f"Saved search results to MongoDB with ID: {result.inserted_id}")
-            
-        except Exception as e:
-            print(f"Error saving search results to MongoDB: {e}")
-            raise
+        save_to_mongodb(processed_results, search_term)
         
         print(f"Found {len(processed_results)} results")
         return processed_results

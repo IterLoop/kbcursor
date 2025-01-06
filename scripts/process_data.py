@@ -6,6 +6,9 @@ from openai import OpenAI
 from pymongo import MongoClient
 import time
 import json
+from config import MONGO_DB_URL, CONTENT_DB, RAW_CONTENT_COLLECTION, PROCESSED_CONTENT_COLLECTION
+from tools.mongo import MongoValidator, RAW_CONTENT_SCHEMA, PROCESSED_CONTENT_SCHEMA
+from datetime import datetime, UTC
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -43,16 +46,20 @@ def process_with_assistant(client, text_data=None, url=None, process_all=False):
     if process_all:
         try:
             # Initialize MongoDB client
-            mongo_client = MongoClient(os.getenv('MONGO_DB_URL'))
-            db = mongo_client[os.getenv('MONGODB_DB_NAME2')]
-            collection = db['scraped_data']
+            mongo_client = MongoClient(MONGO_DB_URL)
+            content_db = mongo_client[CONTENT_DB]
+            raw_content = content_db[RAW_CONTENT_COLLECTION]
+            processed_content = content_db[PROCESSED_CONTENT_COLLECTION]
             
             # Find documents that haven't been processed yet
-            documents = collection.find({
-                "$or": [
-                    {"processed_at": {"$exists": False}},
-                    {"processed_title": {"$exists": False}}
-                ]
+            documents = raw_content.find({
+                "status": "success",
+                "url": {
+                    "$nin": [
+                        doc["url"] 
+                        for doc in processed_content.find({}, {"url": 1})
+                    ]
+                }
             })
             
             processed_count = 0
@@ -71,11 +78,83 @@ def process_with_assistant(client, text_data=None, url=None, process_all=False):
                 
                 try:
                     # Process the document
-                    process_with_assistant(client, text_content, doc.get('url'))
+                    processed_data = process_with_assistant(client, text_content, doc.get('url'))
+                    
+                    # Add metadata
+                    current_time = datetime.now(UTC)
+                    process_meta = {
+                        "process_time": time.time(),
+                        "content_type": "article",  # Default type
+                        "word_count": len(processed_data.get("body_text", "").split()),
+                        "processing_version": "1.0",  # Track version of processing logic
+                        "last_updated": current_time,
+                        "update_history": [
+                            {
+                                "timestamp": current_time,
+                                "reason": "initial_processing"
+                            }
+                        ],
+                        "status": "success"
+                    }
+                    
+                    # Get source metadata from raw content
+                    source_meta = doc.get("metadata", {}).get("source_meta", {})
+                    
+                    # Add metadata to processed data
+                    processed_data["metadata"] = {
+                        "source_meta": source_meta,
+                        "process_meta": process_meta
+                    }
+                    
+                    # Validate processed data against schema
+                    processed_data = MongoValidator.prepare_for_mongodb(processed_data, PROCESSED_CONTENT_SCHEMA)
+                    
+                    # Store processed data
+                    processed_content.update_one(
+                        {"url": doc.get('url')},
+                        {"$set": processed_data},
+                        upsert=True
+                    )
+                    
                     processed_count += 1
                     logger.info(f"Successfully processed document for URL: {doc.get('url')}")
                 except Exception as e:
                     logger.error(f"Error processing document {doc['_id']}: {e}")
+                    # Record failure in metadata
+                    try:
+                        current_time = datetime.now(UTC)
+                        process_meta = {
+                            "process_time": time.time(),
+                            "content_type": None,
+                            "word_count": 0,
+                            "processing_version": "1.0",
+                            "last_updated": current_time,
+                            "update_history": [
+                                {
+                                    "timestamp": current_time,
+                                    "reason": f"processing_failed: {str(e)}"
+                                }
+                            ],
+                            "status": "failed"
+                        }
+                        
+                        failure_doc = {
+                            "url": doc.get('url'),
+                            "metadata": {
+                                "source_meta": doc.get("metadata", {}).get("source_meta", {}),
+                                "process_meta": process_meta
+                            },
+                            "status": "failed"
+                        }
+                        
+                        processed_content.update_one(
+                            {"url": doc.get('url')},
+                            {"$set": failure_doc},
+                            upsert=True
+                        )
+                    except Exception as inner_e:
+                        logger.error(f"Error recording failure metadata: {inner_e}")
+                    
                     failed_count += 1
             
             logger.info("\n=== Processing Summary ===")
@@ -262,43 +341,36 @@ def process_with_assistant(client, text_data=None, url=None, process_all=False):
             try:
                 # Initialize MongoDB client
                 mongo_client = MongoClient(os.getenv('MONGO_DB_URL'))
-                db = mongo_client[os.getenv('MONGODB_DB_NAME2')]
-                collection = db['scraped_data']
+                content_db = mongo_client[os.getenv('MONGODB_DB_NAME2')]
+                processed_content = content_db['processed_content']
                 
-                # Create update fields
-                update_fields = {
-                    "processed_title": processed_data.get("title"),
-                    "processed_subtitle": processed_data.get("subtitle"),
-                    "processed_author": processed_data.get("author"),
-                    "processed_published_date": processed_data.get("published_date"),
-                    "processed_key_points": processed_data.get("key_points", []),
-                    "processed_key_statistics": processed_data.get("key_statistics", []),
-                    "processed_notable_quotes": processed_data.get("notable_quotes", []),
-                    "processed_source": processed_data.get("source"),
-                    "processed_category_tags": processed_data.get("category_tags", []),
-                    "processed_body_text": processed_data.get("body_text"),
-                    "processed_additional_fields": processed_data.get("additional_fields", {}),
-                    "processed_at": time.time()
+                # Create document for processed_content collection
+                document = {
+                    "url": url,
+                    "title": processed_data.get("title"),
+                    "subtitle": processed_data.get("subtitle"),
+                    "author": processed_data.get("author"),
+                    "published_date": processed_data.get("published_date"),
+                    "key_points": processed_data.get("key_points", []),
+                    "key_statistics": processed_data.get("key_statistics", []),
+                    "notable_quotes": processed_data.get("notable_quotes", []),
+                    "source": processed_data.get("source"),
+                    "category_tags": processed_data.get("category_tags", []),
+                    "body_text": processed_data.get("body_text"),
+                    "additional_fields": processed_data.get("additional_fields", {}),
+                    "process_time": time.time(),
+                    "content_type": "article"  # Default type, can be customized based on content
                 }
                 
-                # Remove None values
-                update_fields = {k: v for k, v in update_fields.items() if v is not None}
+                # Insert into processed_content collection
+                result = processed_content.insert_one(document)
                 
-                # Update MongoDB document
-                update_result = collection.update_one(
-                    {"url": url},
-                    {"$set": update_fields},
-                    upsert=False
-                )
+                logger.info(f"Successfully stored processed data with ID: {result.inserted_id}")
                 
-                logger.info(f"MongoDB update result - Modified count: {update_result.modified_count}")
-                
-                # Verify the update
-                updated_doc = collection.find_one({"url": url})
-                if any(field in updated_doc for field in update_fields):
-                    logger.info("Document successfully updated with processed fields")
-                else:
-                    logger.warning("Document update verification failed - processed fields not found")
+                # Verify the insertion
+                stored_doc = processed_content.find_one({"_id": result.inserted_id})
+                if not stored_doc:
+                    logger.warning("Document verification failed - processed document not found")
                     
             except Exception as e:
                 logger.error(f"Failed to store processed data in MongoDB: {e}")

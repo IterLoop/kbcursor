@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import json
 import logging
 from openai import OpenAI
+from config import MONGO_DB_URL, SEARCH_DB, CONTENT_DB
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -69,13 +70,8 @@ def search_and_crawl():
         
         logger.info(f"Found {len(search_results)} URLs to crawl")
         
-        # Step 2: Initialize crawler
-        crawler = MultiCrawler(
-            apify_api_key=os.getenv('APIFY_API_KEY'),
-            mongodb_url=os.getenv('MONGO_DB_URL'),
-            serp_db_name=os.getenv('MONGODB_DB_NAME1'),
-            crawl_db_name=os.getenv('MONGODB_DB_NAME2')
-        )
+        # Step 2: Initialize crawler with only required API key
+        crawler = MultiCrawler(apify_api_key=os.getenv('APIFY_API_KEY'))
         
         # Step 3: Crawl each URL
         successful_crawls = 0

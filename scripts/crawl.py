@@ -99,6 +99,7 @@ class CrawlResult:
     metadata: Dict[str, Any]
     crawl_time: datetime
     method: str
+    search_term: Optional[str] = None
 
 class MultiCrawler:
     def __init__(self, apify_api_key: str, mongodb_url: str, serp_db_name: str, crawl_db_name: str):
@@ -308,6 +309,7 @@ class MultiCrawler:
                 "metadata": result.metadata,
                 "crawl_time": result.crawl_time,
                 "method": result.method,
+                "search_term": result.search_term,
                 "updated_at": datetime.now(UTC),
                 "word_count": len(result.text.split()),
                 "status": "success"
@@ -776,6 +778,41 @@ class MultiCrawler:
                 
         except Exception as e:
             logger.error(f"Error verifying storage: {e}")
+
+    def filter_urls(self, search_results: List[Dict]) -> List[Dict]:
+        """Filter out URLs that don't need to be crawled based on tracking data."""
+        urls_to_crawl = []
+        
+        for result in search_results:
+            url = result['url']
+            should_crawl, _ = self.should_crawl(url)
+            
+            if should_crawl:
+                urls_to_crawl.append(result)
+                
+        logger.info(f"Found {len(search_results)} total URLs")
+        logger.info(f"Filtered to {len(urls_to_crawl)} URLs that need crawling")
+        
+        return urls_to_crawl
+
+    def crawl_urls(self, search_results: List[Dict], search_term: str) -> None:
+        """Crawl a list of URLs after filtering out those that don't need updating."""
+        urls_to_crawl = self.filter_urls(search_results)
+        
+        successful_crawls = 0
+        failed_crawls = 0
+        processed_docs = 0
+        
+        for idx, result in enumerate(urls_to_crawl, 1):
+            url = result['url']
+            logger.info(f"\nProcessing {idx}/{len(urls_to_crawl)}: {url}")
+            
+            try:
+                crawl_result = self.crawl_url(url)
+                if crawl_result:
+                    crawl_result.search_term = search_term
+                    successful_crawls += 1
+                    # ... rest of your existing crawl logic ...
 
 def main():
     # Get environment variables with debug output

@@ -115,9 +115,11 @@ def search_and_crawl():
                 logger.info(f"\nProcessing {idx}/{len(search_results)}: {url}")
                 
                 try:
-                    # Crawl URL (handles its own database operations)
+                    # Create a CrawlResult with search term
                     crawl_result = crawler.crawl_url(url)
                     if crawl_result:
+                        # Add search term to the result
+                        crawl_result.search_term = search_term
                         successful_crawls += 1
                         logger.info(f"✓ Successfully crawled: {url}")
                         logger.info(f"  Method: {crawl_result.method}")

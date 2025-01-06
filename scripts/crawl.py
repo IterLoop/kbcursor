@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime, UTC, timedelta
 from dataclasses import dataclass
 import hashlib
@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 import re
+from fp.fp import FreeProxy
 
 def is_content_relevant_to_title(title: str, content: str, threshold: float = 0.2) -> bool:
     """
@@ -118,6 +119,10 @@ class MultiCrawler:
             
             # Setup indexes after verifying connection
             self._setup_indexes()
+            
+            self.proxy_list = []
+            self.current_proxy_index = 0
+            self._refresh_proxy_list()
             
         except Exception as e:
             logger.error(f"Failed to initialize crawler: {e}")
@@ -450,15 +455,66 @@ class MultiCrawler:
         self._record_crawl_failure(url)
         return None
 
+    def _refresh_proxy_list(self):
+        """Refresh the list of proxies from file"""
+        try:
+            logger.info("Loading proxy list from file...")
+            proxy_file = ROOT_DIR / 'other' / 'proxies.txt'
+            
+            if not proxy_file.exists():
+                logger.error(f"Proxy file not found at: {proxy_file}")
+                self.proxy_list = []
+                return
+
+            with open(proxy_file, 'r') as f:
+                # Read proxies and strip whitespace
+                proxies = [line.strip() for line in f if line.strip()]
+                
+            # Filter out empty lines and validate proxy format
+            self.proxy_list = [
+                proxy if proxy.startswith(('http://', 'https://')) 
+                else f'http://{proxy}' 
+                for proxy in proxies
+            ]
+            
+            logger.info(f"Loaded {len(self.proxy_list)} proxies from file")
+            
+        except Exception as e:
+            logger.error(f"Failed to load proxy list from file: {e}")
+            self.proxy_list = []
+
+    def _get_next_proxy(self) -> Optional[str]:
+        """Get next proxy from the rotation"""
+        if not self.proxy_list:
+            self._refresh_proxy_list()
+        
+        if not self.proxy_list:
+            return None
+
+        self.current_proxy_index = (self.current_proxy_index + 1) % len(self.proxy_list)
+        return self.proxy_list[self.current_proxy_index]
+
     @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _static_crawl(self, url: str) -> Optional[CrawlResult]:
-        """Simple static page crawler using requests"""
+        """Simple static page crawler using requests with proxy rotation"""
         try:
             logger.info(f"Attempting static crawl for: {url}")
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
-            response = requests.get(url, headers=headers, timeout=10)
+            
+            proxy = self._get_next_proxy()
+            proxies = {'https': proxy} if proxy else None
+            
+            if proxies:
+                logger.info(f"Using proxy: {proxy}")
+            
+            response = requests.get(
+                url, 
+                headers=headers, 
+                timeout=10,
+                proxies=proxies
+            )
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, "html.parser")
@@ -481,12 +537,22 @@ class MultiCrawler:
 
     @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _js_crawl(self, url: str) -> Optional[CrawlResult]:
-        """JavaScript-enabled crawler using Playwright"""
+        """JavaScript-enabled crawler using Playwright with proxy rotation"""
         logger.info(f"Attempting JavaScript crawl for: {url}")
         browser = None
         try:
+            proxy = self._get_next_proxy()
+            
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
+                browser_args = []
+                if proxy:
+                    logger.info(f"Using proxy: {proxy}")
+                    browser_args.append(f'--proxy-server={proxy}')
+                
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=browser_args
+                )
                 context = browser.new_context(
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 )

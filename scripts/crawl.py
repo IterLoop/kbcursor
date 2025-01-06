@@ -110,7 +110,7 @@ class MultiCrawler:
             self.crawl_db = self.mongo_client[crawl_db_name]
             
             # Collections
-            self.collection = self.crawl_db['scraped_data']
+            self.collection = self.crawl_db['raw_content']
             self.url_tracking = self.crawl_db['url_tracking']
             
             # Verify connections first
@@ -137,7 +137,7 @@ class MultiCrawler:
             # Log database and collection names
             logger.info(f"Using SERP database: {self.serp_db.name}")
             logger.info(f"Using Crawl database: {self.crawl_db.name}")
-            logger.info(f"Collections: scraped_data, url_tracking")
+            logger.info(f"Collections: raw_content, url_tracking")
             
             # Verify collections exist
             collections = self.crawl_db.list_collection_names()
@@ -150,7 +150,7 @@ class MultiCrawler:
     def _setup_indexes(self):
         """Setup necessary database indexes to match existing structure"""
         try:
-            # Indexes for scraped_data collection
+            # Indexes for raw_content collection
             self.collection.create_index(
                 [("url", 1)], 
                 name="url_1"
@@ -308,7 +308,7 @@ class MultiCrawler:
                 "status": "success"
             }
             
-            # Update or insert into scraped_data collection
+            # Update or insert into raw_content collection
             update_result = self.collection.update_one(
                 {"url": result.url},
                 {"$set": document},
@@ -689,10 +689,10 @@ class MultiCrawler:
     def verify_storage(self, url: str):
         """Verify data storage for a URL"""
         try:
-            # Check scraped_data collection
+            # Check raw_content collection
             doc = self.collection.find_one({"url": url})
             if doc:
-                logger.info(f"Found document in scraped_data:")
+                logger.info(f"Found document in raw_content:")
                 logger.info(f"Title: {doc.get('title')}")
                 logger.info(f"Method: {doc.get('method')}")
                 logger.info(f"Word count: {doc.get('word_count')}")

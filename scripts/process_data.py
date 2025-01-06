@@ -37,29 +37,32 @@ def setup_environment():
         raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
 def process_with_assistant(client, text_data=None, url=None, process_all=False):
-    """Process text data using OpenAI Assistant and store results in MongoDB.
-    If process_all is True, it will process all unprocessed documents in the database."""
+    """Process text data using OpenAI Assistant and store results in MongoDB."""
     
     if process_all:
         try:
             # Initialize MongoDB client
             mongo_client = MongoClient(os.getenv('MONGO_DB_URL'))
-            db = mongo_client[os.getenv('MONGODB_DB_NAME2')]
-            collection = db['scraped_data']
+            db = mongo_client['content_data']
+            raw_collection = db['raw_content']
+            processed_collection = db['processed_content']
             
             # Find documents that haven't been processed yet
-            documents = collection.find({
-                "$or": [
-                    {"processed_at": {"$exists": False}},
-                    {"processed_title": {"$exists": False}}
-                ]
+            raw_docs = raw_collection.find({
+                "text": {"$exists": True}
             })
+            
+            processed_urls = set(doc['url'] for doc in processed_collection.find({}, {"url": 1}))
             
             processed_count = 0
             failed_count = 0
             
-            for doc in documents:
-                logger.info(f"Processing document for URL: {doc.get('url', 'Unknown URL')}")
+            for doc in raw_docs:
+                url = doc.get('url')
+                if url in processed_urls:
+                    continue
+                    
+                logger.info(f"Processing document for URL: {url or 'Unknown URL'}")
                 
                 text_content = doc.get('text', '')
                 logger.info(f"Document text length: {len(text_content)} characters")
@@ -226,11 +229,20 @@ def process_with_assistant(client, text_data=None, url=None, process_all=False):
                     # Merge array fields (using sets to avoid duplicates)
                     for field in ["key_points", "key_statistics", "notable_quotes", "category_tags"]:
                         if data.get(field):
-                            merged_data[field].update(data[field])
+                            if isinstance(data[field], list):
+                                merged_data[field].update(data[field])
+                            else:
+                                merged_data[field].add(str(data[field]))
                     
-                    # Concatenate body text
+                    # Handle body text, ensuring it's always a string
                     if data.get("body_text"):
-                        merged_data["body_text"].append(data["body_text"])
+                        if isinstance(data["body_text"], dict):
+                            body_text = json.dumps(data["body_text"])
+                        elif isinstance(data["body_text"], list):
+                            body_text = " ".join(str(item) for item in data["body_text"])
+                        else:
+                            body_text = str(data["body_text"])
+                        merged_data["body_text"].append(body_text)
                     
                     # Merge additional fields
                     if data.get("additional_fields"):
@@ -244,8 +256,8 @@ def process_with_assistant(client, text_data=None, url=None, process_all=False):
             for field in ["key_points", "key_statistics", "notable_quotes", "category_tags"]:
                 merged_data[field] = list(merged_data[field])
             
-            # Join body text parts
-            merged_data["body_text"] = " ".join(merged_data["body_text"])
+            # Join body text parts, ensuring all parts are strings
+            merged_data["body_text"] = " ".join(str(part) for part in merged_data["body_text"])
             
             return merged_data
         
@@ -262,11 +274,17 @@ def process_with_assistant(client, text_data=None, url=None, process_all=False):
             try:
                 # Initialize MongoDB client
                 mongo_client = MongoClient(os.getenv('MONGO_DB_URL'))
-                db = mongo_client[os.getenv('MONGODB_DB_NAME2')]
-                collection = db['scraped_data']
+                logger.info(f"Connected to MongoDB at {os.getenv('MONGO_DB_URL')}")
+                
+                db = mongo_client['content_data']
+                logger.info("Using database: content_data")
+                
+                processed_collection = db['processed_content']
+                logger.info("Accessing 'processed_content' collection")
                 
                 # Create update fields
                 update_fields = {
+                    "url": url,  # Add URL to the document itself
                     "processed_title": processed_data.get("title"),
                     "processed_subtitle": processed_data.get("subtitle"),
                     "processed_author": processed_data.get("author"),
@@ -283,18 +301,22 @@ def process_with_assistant(client, text_data=None, url=None, process_all=False):
                 
                 # Remove None values
                 update_fields = {k: v for k, v in update_fields.items() if v is not None}
+                logger.info(f"Prepared update fields: {json.dumps(update_fields, indent=2)}")
                 
                 # Update MongoDB document
-                update_result = collection.update_one(
-                    {"url": url},
-                    {"$set": update_fields},
-                    upsert=False
-                )
-                
-                logger.info(f"MongoDB update result - Modified count: {update_result.modified_count}")
+                try:
+                    update_result = processed_collection.update_one(
+                        {"url": url},
+                        {"$set": update_fields},
+                        upsert=True
+                    )
+                    logger.info(f"Update operation completed - Modified: {update_result.modified_count}, Upserted ID: {update_result.upserted_id}")
+                except Exception as mongo_error:
+                    logger.error(f"MongoDB update operation failed: {str(mongo_error)}")
+                    raise
                 
                 # Verify the update
-                updated_doc = collection.find_one({"url": url})
+                updated_doc = processed_collection.find_one({"url": url})
                 if any(field in updated_doc for field in update_fields):
                     logger.info("Document successfully updated with processed fields")
                 else:

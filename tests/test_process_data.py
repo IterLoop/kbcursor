@@ -56,7 +56,8 @@ def test_mongodb_connection(mongo_client, env_setup):
     collections = db.list_collection_names()
     
     # Verify required collections exist
-    assert 'scraped_data' in collections, "scraped_data collection not found"
+    assert 'raw_content' in collections, "raw_content collection not found"
+    assert 'processed_content' in collections, "processed_content collection not found"
     logger.info(f"Available collections: {collections}")
 
 def test_openai_connection(openai_client, env_setup):
@@ -73,12 +74,13 @@ def test_openai_connection(openai_client, env_setup):
 def test_process_single_document(mongo_client, openai_client, env_setup):
     """Test processing a single document from MongoDB"""
     db = mongo_client[env_setup['db_name']]
-    collection = db['scraped_data']
+    raw_collection = db['raw_content']
+    processed_collection = db['processed_content']
     
     # Find a document that hasn't been processed yet
-    document = collection.find_one({
+    document = raw_collection.find_one({
         "text": {"$exists": True},
-        "processed_result": {"$exists": False}
+        "_id": {"$nin": processed_collection.distinct("original_id")}
     })
     
     if not document:
@@ -99,30 +101,30 @@ def test_process_single_document(mongo_client, openai_client, env_setup):
         assert field in processed_result, f"Missing required field: {field}"
     
     # Update MongoDB
-    update_result = collection.update_one(
-        {"_id": document['_id']},
-        {"$set": {
-            "processed_result": processed_result,
-            "processed_at": datetime.now(UTC)
-        }}
-    )
-    assert update_result.modified_count == 1, "Failed to update document in MongoDB"
+    update_result = processed_collection.insert_one({
+        "original_id": document['_id'],
+        "processed_result": processed_result,
+        "processed_at": datetime.now(UTC)
+    })
+    assert update_result.inserted_id, "Failed to insert document in MongoDB"
     
     # Verify update
-    updated_doc = collection.find_one({"_id": document['_id']})
-    assert 'processed_result' in updated_doc, "Processed result not found in updated document"
+    updated_doc = processed_collection.find_one({"original_id": document['_id']})
+    assert updated_doc is not None, "Processed document not found"
     logger.info("Document processing and storage verified successfully")
 
 
 def test_data_pipeline_integrity(mongo_client, openai_client, env_setup):
     """Test the entire data processing pipeline"""
     db = mongo_client[env_setup['db_name']]
-    collection = db['scraped_data']
+    raw_collection = db['raw_content']
+    processed_collection = db['processed_content']
     
     # Get a sample of unprocessed documents
-    unprocessed_docs = list(collection.find({
+    processed_ids = set(processed_collection.distinct("original_id"))
+    unprocessed_docs = list(raw_collection.find({
         "text": {"$exists": True},
-        "processed_result": {"$exists": False}
+        "_id": {"$nin": list(processed_ids)}
     }).limit(3))
     
     if not unprocessed_docs:
@@ -133,28 +135,42 @@ def test_data_pipeline_integrity(mongo_client, openai_client, env_setup):
         try:
             # Process document
             text_content = doc.get('text', '')
+            # Handle case where text might be a dict or list
+            if isinstance(text_content, (dict, list)):
+                if isinstance(text_content, dict):
+                    text_content = text_content.get('content', '')
+                else:
+                    text_content = ' '.join(str(item) for item in text_content)
+            
+            if not text_content or not isinstance(text_content, str):
+                logger.warning(f"Skipping document {doc['_id']}: Invalid text content")
+                continue
+                
             processed_result = process_with_assistant(openai_client, text_content)
             
-            # Update MongoDB
-            update_result = collection.update_one(
-                {"_id": doc['_id']},
-                {"$set": {
-                    "processed_result": processed_result,
-                    "processed_at": datetime.now(UTC)
-                }}
-            )
+            # Insert into processed_content collection
+            insert_result = processed_collection.insert_one({
+                "original_id": doc['_id'],
+                "processed_result": processed_result,
+                "processed_at": datetime.now(UTC),
+                "source_url": doc.get('url', ''),  # Adding source URL for reference
+                "content_hash": doc.get('content_hash', '')  # Adding content hash for tracking
+            })
             
-            if update_result.modified_count == 1:
+            if insert_result.inserted_id:
                 successful_processes += 1
+                logger.info(f"Successfully processed document {doc['_id']}")
                 
         except Exception as e:
-            logger.error(f"Error processing document {doc['_id']}: {e}")
+            logger.error(f"Error processing document {doc['_id']}: {str(e)}")
             continue
     
-    # Verify success rate
-    success_rate = successful_processes / len(unprocessed_docs)
-    assert success_rate >= 0.66, f"Pipeline success rate too low: {success_rate:.2%}"
-    logger.info(f"Pipeline test completed with {success_rate:.2%} success rate")
+    # Only calculate success rate if we actually processed documents
+    if len(unprocessed_docs) > 0:
+        success_rate = successful_processes / len(unprocessed_docs)
+        assert success_rate >= 0.66, f"Pipeline success rate too low: {success_rate:.2%}"
+    else:
+        logger.warning("No documents were processed")
 
 if __name__ == "__main__":
     # For manual test execution

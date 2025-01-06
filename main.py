@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import json
 import logging
 from openai import OpenAI
+import time
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -98,12 +99,17 @@ def search_and_crawl():
                     
                     # Step 4: Process the crawled data (handles its own database operations)
                     try:
-                        logger.info(f"Processing content with OpenAI Assistant...")
+                        logger.info(f"\nProcessing content with OpenAI Assistant...")
+                        logger.info(f"Content length to process: {len(crawl_result.text)} characters")
+                        start_time = time.time()
                         process_with_assistant(openai_client, crawl_result.text, url)
+                        processing_time = time.time() - start_time
                         processed_docs += 1
                         logger.info(f"✓ Successfully processed content for: {url}")
+                        logger.info(f"  Processing time: {processing_time:.2f} seconds")
                     except Exception as e:
-                        logger.error(f"✗ Error processing content for {url}: {e}")
+                        logger.error(f"✗ Error processing content for {url}: {str(e)}")
+                        logger.error(f"  Error type: {type(e).__name__}")
                 else:
                     failed_crawls += 1
                     logger.error(f"✗ Failed to crawl: {url}")

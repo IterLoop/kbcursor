@@ -5,7 +5,7 @@ import urllib.parse
 from pymongo import MongoClient
 
 from .base.base_crawler import CrawlResult
-from .strategies.static_crawler import StaticCrawler
+from .strategies.selenium_crawler import SeleniumCrawler
 from .strategies.js_crawler import JSCrawler
 from .strategies.apify_crawler import ApifyCrawler
 from ..utils.proxy_manager import ProxyManager
@@ -35,7 +35,7 @@ class MultiCrawler:
         
         # Initialize crawlers
         self.crawlers = [
-            StaticCrawler(self.proxy_manager),
+            SeleniumCrawler(self.proxy_manager),
             JSCrawler(self.proxy_manager)
         ]
         

@@ -18,53 +18,38 @@ import numpy as np
 import re
 from config import MONGO_DB_URL, SEARCH_DB, CONTENT_DB, RAW_CONTENT_COLLECTION
 from tools.mongo import MongoValidator, RAW_CONTENT_SCHEMA
+import io
+import PyPDF2
+from pdfminer.high_level import extract_text
+from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
+from pdfminer.converter import TextConverter
+from pdfminer.layout import LAParams
+from pdfminer.pdfpage import PDFPage
+import time
+import random
 
-def is_content_relevant_to_title(title: str, content: str, threshold: float = 0.2) -> bool:
-    """
-    Checks whether the content is relevant to the given title by computing
-    a simple TF-IDF-based cosine similarity. If the similarity is below
-    `threshold`, it is considered 'off-topic'.
-
-    :param title: The article's title.
-    :param content: The full text content of the article.
-    :param threshold: Cosine similarity threshold. Higher means stricter.
-    :return: True if relevant, False if off-topic.
-    """
-    # Basic sanity checks
-    if not title or not content:
-        return True  # If we don't have enough info, assume it's okay or handle differently
-
-    # Optional: Basic text cleanup (remove special characters, extra spaces, etc.)
-    def basic_clean(text):
-        text = re.sub(r'[\r\n]+', ' ', text)
-        text = re.sub(r'[^\w\s]', '', text)
-        return text.lower().strip()
-
-    title_clean = basic_clean(title)
-    content_clean = basic_clean(content)
-
-    # TF-IDF vectorization
-    corpus = [title_clean, content_clean]
-    vectorizer = TfidfVectorizer()
-    vectors = vectorizer.fit_transform(corpus).toarray()
-
-    if len(vectorizer.get_feature_names_out()) == 0:
-        # If there's no overlap in vocabulary at all, consider it off-topic 
-        # or handle it differently
-        return False
-
-    # vectors[0] -> TF-IDF for title, vectors[1] -> TF-IDF for content
-    # Cosine similarity
-    title_vec = vectors[0]
-    content_vec = vectors[1]
-
-    similarity = np.dot(title_vec, content_vec) / (
-        np.linalg.norm(title_vec) * np.linalg.norm(content_vec)
-        + 1e-9  # Avoid division by zero
-    )
-
-    # Return True if above threshold, else False
-    return similarity >= threshold
+def is_content_relevant_to_title(title: str, text: str) -> bool:
+    """Check if content is relevant to the title using NLP"""
+    try:
+        # Clean and normalize text
+        title = title.lower().strip()
+        text = text.lower().strip()
+        
+        # Create TF-IDF vectorizer
+        vectorizer = TfidfVectorizer(stop_words='english')
+        
+        # Fit and transform the title and text
+        tfidf_matrix = vectorizer.fit_transform([title, text])
+        
+        # Calculate cosine similarity
+        similarity = (tfidf_matrix * tfidf_matrix.T).A[0][1]
+        
+        # Lower threshold for relevance (was 0.3)
+        return similarity > 0.1
+        
+    except Exception as e:
+        logger.error(f"Error checking content relevance: {e}")
+        return True  # On error, assume content is relevant
 
 # Define root directory
 ROOT_DIR = Path(__file__).parent.parent
@@ -119,6 +104,24 @@ class MultiCrawler:
             
             # Setup indexes after verifying connection
             self._setup_indexes()
+            
+            # Add supported content types
+            self.supported_content_types = {
+                'text/html': self._process_html,
+                'application/pdf': self._process_pdf,
+                'application/x-pdf': self._process_pdf,
+                'application/octet-stream': self._check_and_process_pdf,
+                'binary/octet-stream': self._check_and_process_pdf
+            }
+            
+            # Initialize content type statistics
+            if 'content_type_stats' not in globals():
+                global content_type_stats
+                content_type_stats = {
+                    'html': {'attempts': 0, 'successes': 0, 'failures': 0},
+                    'pdf': {'attempts': 0, 'successes': 0, 'failures': 0},
+                    'unknown': {'attempts': 0, 'successes': 0, 'failures': 0}
+                }
             
         except Exception as e:
             logger.error(f"Failed to initialize crawler: {e}")
@@ -246,33 +249,37 @@ class MultiCrawler:
         """Store crawl result in MongoDB with proper error handling"""
         try:
             # Get existing document if any
-            existing_doc = self.collection.find_one({"url": result.url})
+            existing_doc = self.collection.find_one({"url": result.url}) or {}
             current_time = datetime.now(UTC)
+            
+            # Get existing metadata safely
+            existing_metadata = existing_doc.get("metadata", {})
+            existing_crawl_meta = existing_metadata.get("crawl_meta", {})
             
             # Prepare metadata
             crawl_meta = {
-                "method": result.method,
+                "method": str(result.method) if hasattr(result.method, '__name__') else str(result.method),
                 "crawl_time": current_time,
                 "updated_at": current_time,
                 "content_hash": self._get_url_hash(result.text),
                 "word_count": len(result.text.split()),
                 "status": "success",
-                "attempts": (existing_doc.get("metadata", {}).get("crawl_meta", {}).get("attempts", 0) + 1) if existing_doc else 1,
+                "attempts": existing_crawl_meta.get("attempts", 0) + 1,
                 "last_success": current_time,
-                "last_failure": existing_doc.get("metadata", {}).get("crawl_meta", {}).get("last_failure"),
+                "last_failure": existing_crawl_meta.get("last_failure"),
                 "failure_reason": None
             }
             
             # Prepare document for MongoDB
             document = {
                 "url": result.url,
-                "title": result.title,
+                "title": result.title or "",
                 "text": result.text,
                 "metadata": {
-                    "source_meta": result.metadata,  # Original metadata from source
+                    "source_meta": result.metadata or {},
                     "crawl_meta": crawl_meta
                 },
-                "method": result.method,
+                "method": str(result.method) if hasattr(result.method, '__name__') else str(result.method),
                 "crawl_time": current_time,
                 "updated_at": current_time,
                 "word_count": len(result.text.split()),
@@ -300,8 +307,12 @@ class MultiCrawler:
         """Record failed crawl attempt with metadata"""
         try:
             # Get existing document if any
-            existing_doc = self.collection.find_one({"url": url})
+            existing_doc = self.collection.find_one({"url": url}) or {}
             current_time = datetime.now(UTC)
+            
+            # Get existing metadata safely
+            existing_metadata = existing_doc.get("metadata", {})
+            existing_crawl_meta = existing_metadata.get("crawl_meta", {})
             
             # Prepare metadata
             crawl_meta = {
@@ -311,15 +322,15 @@ class MultiCrawler:
                 "content_hash": None,
                 "word_count": 0,
                 "status": "failed",
-                "attempts": (existing_doc.get("metadata", {}).get("crawl_meta", {}).get("attempts", 0) + 1) if existing_doc else 1,
-                "last_success": existing_doc.get("metadata", {}).get("crawl_meta", {}).get("last_success"),
+                "attempts": existing_crawl_meta.get("attempts", 0) + 1,
+                "last_success": existing_crawl_meta.get("last_success"),
                 "last_failure": current_time,
-                "failure_reason": reason
+                "failure_reason": str(reason)
             }
             
             tracking_data = {
                 "url": url,
-                "title": None,
+                "title": "",
                 "text": "",
                 "metadata": {
                     "source_meta": {},
@@ -330,7 +341,7 @@ class MultiCrawler:
                 "updated_at": current_time,
                 "word_count": 0,
                 "status": "failed",
-                "content_hash": None
+                "content_hash": ""
             }
             
             # Validate document against schema
@@ -380,16 +391,20 @@ class MultiCrawler:
 
         # Separate free crawlers and Apify
         free_crawlers = [
-            ("BeautifulSoup Static", self._static_crawl),
-            ("Playwright Dynamic", self._js_crawl),
-            ("Selenium Fallback", self._selenium_crawl),
-            ("Scrapy Fallback", self._scrapy_crawl)
+            ("BeautifulSoup Static", self._static_crawl, "static"),
+            ("Playwright Dynamic", self._js_crawl, "javascript"),
+            ("Selenium Fallback", self._selenium_crawl, "selenium"),
+            ("Scrapy Fallback", self._scrapy_crawl, "scrapy")
         ]
 
         # Try each free crawler first
-        for crawler_name, crawler_method in free_crawlers:
+        for crawler_name, crawler_method, method_key in free_crawlers:
             logger.info(f"Attempting {crawler_name} crawler for: {url}")
             try:
+                # Update attempt count
+                if 'crawler_stats' in globals():
+                    crawler_stats[method_key]['attempts'] += 1
+                
                 result = crawler_method(url)
                 if result and result.text and len(result.text) > 100:
                     logger.info(f"Successfully crawled with {crawler_name}")
@@ -422,6 +437,10 @@ class MultiCrawler:
         # If all free crawlers failed or got irrelevant content, try Apify
         logger.info("All free crawlers failed or got irrelevant content. Attempting Apify crawler.")
         try:
+            # Update Apify attempt count
+            if 'crawler_stats' in globals():
+                crawler_stats['apify']['attempts'] += 1
+            
             apify_result = self._apify_crawl(url)
             if apify_result and apify_result.text:
                 if not apify_result.title or is_content_relevant_to_title(apify_result.title, apify_result.text):
@@ -445,29 +464,67 @@ class MultiCrawler:
 
     @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _static_crawl(self, url: str) -> Optional[CrawlResult]:
-        """Simple static page crawler using requests"""
+        """Enhanced static crawler with PDF support"""
         try:
             logger.info(f"Attempting static crawl for: {url}")
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
             }
+            
+            # Add random delay to avoid rate limiting
+            time.sleep(random.uniform(1, 3))
+            
             response = requests.get(url, headers=headers, timeout=10)
-            response.raise_for_status()
             
-            soup = BeautifulSoup(response.text, "html.parser")
-            text = soup.get_text(separator=" ", strip=True)
-            
-            if not text:
+            # Handle common error codes
+            if response.status_code == 403:
+                logger.warning(f"Access forbidden (403) for {url}. Site may be blocking crawlers.")
+                return None
+            elif response.status_code == 429:
+                logger.warning(f"Rate limited (429) for {url}. Adding longer delay.")
+                time.sleep(random.uniform(5, 10))
+                return None
+            elif response.status_code != 200:
+                logger.warning(f"Unexpected status code {response.status_code} for {url}")
                 return None
                 
-            return CrawlResult(
-                url=url,
-                title=soup.title.string if soup.title else None,
-                text=text,
-                metadata=self._extract_metadata(soup),
-                crawl_time=datetime.now(UTC),
-                method="static"
-            )
+            response.raise_for_status()
+            
+            content_type = response.headers.get('content-type', '').lower().split(';')[0]
+            
+            # Process content based on type
+            for supported_type, processor in self.supported_content_types.items():
+                if supported_type in content_type:
+                    result = processor(response.content, url)
+                    if result:
+                        return result
+            
+            # Default HTML processing
+            if 'text/html' in content_type:
+                soup = BeautifulSoup(response.text, "html.parser")
+                text = soup.get_text(separator=" ", strip=True)
+                
+                if not text:
+                    return None
+                    
+                return CrawlResult(
+                    url=url,
+                    title=soup.title.string if soup.title else None,
+                    text=text,
+                    metadata=self._extract_metadata(soup),
+                    crawl_time=datetime.now(UTC),
+                    method="static"
+                )
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Static crawler failed for {url}: {e}")
+            return None
         except Exception as e:
             logger.error(f"Static crawler failed for {url}: {e}")
             return None
@@ -531,6 +588,7 @@ class MultiCrawler:
         try:
             logger.info(f"Attempting Apify crawl for: {url}")
             
+            # First try with default memory
             run_input = {
                 "startUrls": [{"url": url}],
                 "maxCrawlingDepth": 1,
@@ -539,7 +597,17 @@ class MultiCrawler:
                 "proxyConfiguration": {"useApifyProxy": True}
             }
             
-            run = self.apify_client.actor("apify/website-content-crawler").call(run_input=run_input)
+            try:
+                run = self.apify_client.actor("apify/website-content-crawler").call(run_input=run_input)
+            except Exception as e:
+                if "exceed the memory limit" in str(e):
+                    logger.warning("Apify memory limit exceeded, trying with reduced memory")
+                    # Try again with reduced memory
+                    run_input["memoryMbytes"] = 4096  # Reduce memory to 4GB
+                    run = self.apify_client.actor("apify/website-content-crawler").call(run_input=run_input)
+                else:
+                    raise
+            
             items = self.apify_client.dataset(run["defaultDatasetId"]).list_items().items
             
             if not items:
@@ -704,6 +772,108 @@ class MultiCrawler:
         except Exception as e:
             logger.error(f"Error verifying storage: {e}")
 
+    def _process_pdf(self, content: bytes, url: str) -> Optional[CrawlResult]:
+        """Process PDF content and extract text"""
+        try:
+            logger.info(f"Processing PDF content from {url}")
+            content_type_stats['pdf']['attempts'] += 1
+            
+            # Try PyPDF2 first
+            try:
+                pdf_file = io.BytesIO(content)
+                reader = PyPDF2.PdfReader(pdf_file)
+                text = ""
+                for page in reader.pages:
+                    text += page.extract_text() + "\n"
+                
+                if text.strip():
+                    content_type_stats['pdf']['successes'] += 1
+                    return self._create_result(url, text, "pdf_pypdf2")
+            except Exception as e:
+                logger.warning(f"PyPDF2 extraction failed for {url}, trying PDFMiner: {e}")
+
+            # Fallback to PDFMiner
+            try:
+                resource_manager = PDFResourceManager()
+                fake_file_handle = io.StringIO()
+                converter = TextConverter(resource_manager, fake_file_handle, laparams=LAParams())
+                page_interpreter = PDFPageInterpreter(resource_manager, converter)
+                
+                pdf_file = io.BytesIO(content)
+                for page in PDFPage.get_pages(pdf_file):
+                    page_interpreter.process_page(page)
+                
+                text = fake_file_handle.getvalue()
+                converter.close()
+                fake_file_handle.close()
+                
+                if text.strip():
+                    content_type_stats['pdf']['successes'] += 1
+                    return self._create_result(url, text, "pdf_pdfminer")
+                
+            except Exception as e:
+                logger.error(f"PDFMiner extraction failed for {url}: {e}")
+                content_type_stats['pdf']['failures'] += 1
+                return None
+
+        except Exception as e:
+            logger.error(f"PDF processing failed for {url}: {e}")
+            content_type_stats['pdf']['failures'] += 1
+            return None
+
+    def _check_and_process_pdf(self, content: bytes, url: str) -> Optional[CrawlResult]:
+        """Check if content is PDF and process accordingly"""
+        # Check for PDF signature (%PDF-)
+        if content.startswith(b'%PDF-'):
+            logger.info(f"Detected PDF content for {url}")
+            return self._process_pdf(content, url)
+        logger.warning(f"Content for {url} is not a valid PDF")
+        content_type_stats['unknown']['attempts'] += 1
+        content_type_stats['unknown']['failures'] += 1
+        return None
+
+    def _create_result(self, url: str, text: str, method: str) -> CrawlResult:
+        """Create a CrawlResult object with extracted text"""
+        # Try to extract title from first line or use URL
+        title = text.strip().split('\n')[0][:100] if text else None
+        
+        return CrawlResult(
+            url=url,
+            title=title,
+            text=text,
+            metadata={
+                'content_type': 'application/pdf',
+                'extraction_method': method
+            },
+            crawl_time=datetime.now(UTC),
+            method=method
+        )
+
+    def _process_html(self, content: bytes, url: str) -> Optional[CrawlResult]:
+        """Process HTML content"""
+        try:
+            content_type_stats['html']['attempts'] += 1
+            soup = BeautifulSoup(content.decode('utf-8', errors='ignore'), "html.parser")
+            text = soup.get_text(separator=" ", strip=True)
+            
+            if not text:
+                content_type_stats['html']['failures'] += 1
+                return None
+                
+            content_type_stats['html']['successes'] += 1
+            return CrawlResult(
+                url=url,
+                title=soup.title.string if soup.title else None,
+                text=text,
+                metadata=self._extract_metadata(soup),
+                crawl_time=datetime.now(UTC),
+                method="static"
+            )
+        except Exception as e:
+            logger.error(f"HTML processing failed: {e}")
+            content_type_stats['html']['failures'] += 1
+            return None
+
 def main():
     # Get environment variables with debug output
     env_vars = {
@@ -723,6 +893,22 @@ def main():
         missing_vars = [key for key, value in env_vars.items() if not value]
         logger.error(f"Missing environment variables: {', '.join(missing_vars)}")
         raise ValueError("Missing required environment variables")
+    
+    # Initialize crawler statistics
+    global crawler_stats, content_type_stats
+    crawler_stats = {
+        'static': {'attempts': 0, 'successes': 0, 'failures': 0},
+        'javascript': {'attempts': 0, 'successes': 0, 'failures': 0},
+        'selenium': {'attempts': 0, 'successes': 0, 'failures': 0},
+        'scrapy': {'attempts': 0, 'successes': 0, 'failures': 0},
+        'apify': {'attempts': 0, 'successes': 0, 'failures': 0}
+    }
+    
+    content_type_stats = {
+        'html': {'attempts': 0, 'successes': 0, 'failures': 0},
+        'pdf': {'attempts': 0, 'successes': 0, 'failures': 0},
+        'unknown': {'attempts': 0, 'successes': 0, 'failures': 0}
+    }
     
     # Initialize crawler
     crawler = MultiCrawler(
@@ -754,15 +940,26 @@ def main():
     # Process URLs
     total_urls = len(urls)
     successful_crawls = 0
+    skipped_urls = 0
+    cached_urls = 0
     
     for index, url in enumerate(urls, 1):
         logger.info(f"Processing URL {index}/{total_urls}: {url}")
         
         if not url:
             logger.warning("Skipping empty URL")
+            skipped_urls += 1
             continue
             
         try:
+            # Check if URL should be crawled
+            should_crawl, existing_data = crawler.should_crawl(url)
+            if not should_crawl and existing_data:
+                cached_urls += 1
+                successful_crawls += 1
+                logger.info(f"Using cached data for {url}")
+                continue
+
             result = crawler.crawl_url(url)
             if result:
                 successful_crawls += 1
@@ -770,16 +967,64 @@ def main():
                 logger.info(f"Method: {result.method}")
                 logger.info(f"Title: {result.title}")
                 logger.info(f"Content length: {len(result.text)} characters")
+                
+                # Update crawler statistics
+                if result.method in crawler_stats:
+                    crawler_stats[result.method]['successes'] += 1
                 crawler.verify_storage(url)
+            else:
+                # Update statistics for failed attempts
+                for method in crawler_stats:
+                    crawler_stats[method]['attempts'] += 1
+                    crawler_stats[method]['failures'] += 1
         except Exception as e:
             logger.error(f"Error processing {url}: {e}")
             continue
     
-    # Log summary
-    logger.info("\nCrawl Summary:")
+    # Calculate success rates
+    success_rates = {}
+    for method, stats in crawler_stats.items():
+        total_attempts = stats['attempts']
+        if total_attempts > 0:
+            success_rate = (stats['successes'] / total_attempts) * 100
+        else:
+            success_rate = 0
+        success_rates[method] = success_rate
+    
+    content_success_rates = {}
+    for content_type, stats in content_type_stats.items():
+        total_attempts = stats['attempts']
+        if total_attempts > 0:
+            success_rate = (stats['successes'] / total_attempts) * 100
+        else:
+            success_rate = 0
+        content_success_rates[content_type] = success_rate
+    
+    # Log detailed summary
+    logger.info("\n=== Crawl Summary ===")
     logger.info(f"Total URLs processed: {total_urls}")
-    logger.info(f"Successful crawls: {successful_crawls}")
+    logger.info(f"Successfully crawled: {successful_crawls}")
     logger.info(f"Failed crawls: {total_urls - successful_crawls}")
+    logger.info(f"Skipped URLs: {skipped_urls}")
+    logger.info(f"Used cached data: {cached_urls}")
+    
+    logger.info("\n=== Crawler Performance ===")
+    for method, stats in crawler_stats.items():
+        if stats['attempts'] > 0:
+            logger.info(f"\n{method.capitalize()} Crawler:")
+            logger.info(f"  Attempts: {stats['attempts']}")
+            logger.info(f"  Successes: {stats['successes']}")
+            logger.info(f"  Failures: {stats['failures']}")
+            logger.info(f"  Success Rate: {success_rates[method]:.1f}%")
+    
+    logger.info("\n=== Content Type Performance ===")
+    for content_type, stats in content_type_stats.items():
+        if stats['attempts'] > 0:
+            logger.info(f"\n{content_type.upper()} Content:")
+            logger.info(f"  Attempts: {stats['attempts']}")
+            logger.info(f"  Successes: {stats['successes']}")
+            logger.info(f"  Failures: {stats['failures']}")
+            logger.info(f"  Success Rate: {content_success_rates[content_type]:.1f}%")
 
 if __name__ == "__main__":
     try:

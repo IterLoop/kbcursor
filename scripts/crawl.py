@@ -125,6 +125,10 @@ class MultiCrawler:
             self.current_proxy_index = 0
             self._refresh_proxy_list()
             
+            self.successful_crawls = 0
+            self.failed_crawls = 0
+            self.processed_docs = 0
+            
         except Exception as e:
             logger.error(f"Failed to initialize crawler: {e}")
             raise
@@ -797,12 +801,19 @@ class MultiCrawler:
 
     def crawl_urls(self, search_results: List[Dict], search_term: str) -> None:
         """Crawl a list of URLs after filtering out those that don't need updating."""
-        urls_to_crawl = self.filter_urls(search_results)
+        urls_to_crawl = []
         
-        successful_crawls = 0
-        failed_crawls = 0
-        processed_docs = 0
+        # Check each URL against tracking data
+        for result in search_results:
+            url = result['url']
+            should_crawl, _ = self.should_crawl(url)
+            if should_crawl:
+                urls_to_crawl.append(result)
         
+        logger.info(f"Found {len(search_results)} total URLs")
+        logger.info(f"Filtered to {len(urls_to_crawl)} URLs that need crawling")
+        
+        # Process filtered URLs
         for idx, result in enumerate(urls_to_crawl, 1):
             url = result['url']
             logger.info(f"\nProcessing {idx}/{len(urls_to_crawl)}: {url}")
@@ -811,8 +822,18 @@ class MultiCrawler:
                 crawl_result = self.crawl_url(url)
                 if crawl_result:
                     crawl_result.search_term = search_term
-                    successful_crawls += 1
-                    # ... rest of your existing crawl logic ...
+                    self.successful_crawls += 1
+                    logger.info(f"Successfully crawled: {url}")
+                    logger.info(f"Method: {crawl_result.method}")
+                    logger.info(f"Title: {crawl_result.title}")
+                    logger.info(f"Content length: {len(crawl_result.text)} characters")
+                else:
+                    self.failed_crawls += 1
+                    logger.error(f"Failed to crawl: {url}")
+            except Exception as e:
+                self.failed_crawls += 1
+                logger.error(f"Error crawling {url}: {e}")
+                continue
 
 def main():
     # Get environment variables with debug output
@@ -903,3 +924,4 @@ if __name__ == "__main__":
         logger.error(f"Unexpected error: {e}")
     finally:
         logger.info("Crawling process completed")
+

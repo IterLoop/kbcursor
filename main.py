@@ -97,7 +97,7 @@ def search_and_crawl():
             
             logger.info(f"Found {len(search_results)} URLs to crawl")
             
-            # Step 2: Initialize crawler
+            # Initialize crawler
             crawler = MultiCrawler(
                 apify_api_key=os.getenv('APIFY_API_KEY'),
                 mongodb_url=os.getenv('MONGO_DB_URL'),
@@ -105,46 +105,8 @@ def search_and_crawl():
                 crawl_db_name=os.getenv('MONGODB_DB_NAME2')
             )
             
-            # Step 3: Crawl each URL
-            successful_crawls = 0
-            failed_crawls = 0
-            processed_docs = 0
-            
-            for idx, result in enumerate(search_results, 1):
-                url = result['url']
-                logger.info(f"\nProcessing {idx}/{len(search_results)}: {url}")
-                
-                try:
-                    # Create a CrawlResult with search term
-                    crawl_result = crawler.crawl_url(url)
-                    if crawl_result:
-                        # Add search term to the result
-                        crawl_result.search_term = search_term
-                        successful_crawls += 1
-                        logger.info(f"✓ Successfully crawled: {url}")
-                        logger.info(f"  Method: {crawl_result.method}")
-                        logger.info(f"  Title: {crawl_result.title}")
-                        logger.info(f"  Content length: {len(crawl_result.text)} characters")
-                        
-                        # Step 4: Process the crawled data (handles its own database operations)
-                        try:
-                            logger.info(f"\nProcessing content with OpenAI Assistant...")
-                            logger.info(f"Content length to process: {len(crawl_result.text)} characters")
-                            start_time = time.time()
-                            process_with_assistant(openai_client, crawl_result.text, url)
-                            processing_time = time.time() - start_time
-                            processed_docs += 1
-                            logger.info(f"✓ Successfully processed content for: {url}")
-                            logger.info(f"  Processing time: {processing_time:.2f} seconds")
-                        except Exception as e:
-                            logger.error(f"✗ Error processing content for {url}: {str(e)}")
-                            logger.error(f"  Error type: {type(e).__name__}")
-                    else:
-                        failed_crawls += 1
-                        logger.error(f"✗ Failed to crawl: {url}")
-                except Exception as e:
-                    failed_crawls += 1
-                    logger.error(f"✗ Error crawling {url}: {e}")
+            # Crawl filtered URLs
+            crawler.crawl_urls(search_results, search_term)
             
             # Enhanced summary with timestamps
             logger.info("\n=== Search Run Summary ===")
@@ -152,9 +114,9 @@ def search_and_crawl():
             logger.info(f"Start time: {search_start_time}")
             logger.info(f"End time: {datetime.now()}")
             logger.info(f"Total URLs processed: {len(search_results)}")
-            logger.info(f"Successful crawls: {successful_crawls}")
-            logger.info(f"Failed crawls: {failed_crawls}")
-            logger.info(f"Successfully processed documents: {processed_docs}")
+            logger.info(f"Successful crawls: {crawler.successful_crawls}")
+            logger.info(f"Failed crawls: {crawler.failed_crawls}")
+            logger.info(f"Successfully processed documents: {crawler.processed_docs}")
             logger.info("=====================")
         
         # Add run completion summary

@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 from apify_client import ApifyClient
 from dotenv import load_dotenv
@@ -6,9 +7,13 @@ from pathlib import Path
 from typing import List, Dict, Any
 from pymongo import MongoClient
 from datetime import datetime
+from .crawl import MultiCrawler
 
 # Get the project root directory (parent of scripts folder)
 ROOT_DIR = Path(__file__).parent.parent
+
+# Add scripts directory to Python path
+sys.path.append(str(ROOT_DIR / 'scripts'))
 
 # Load environment variables from secrets/.env
 env_path = os.path.join(ROOT_DIR, 'secrets', '.env')
@@ -143,6 +148,17 @@ def main():
         # Print results
         print("\nResults:")
         print(json.dumps(results, indent=4))
+        
+        # Initialize crawler with environment variables
+        crawler = MultiCrawler(
+            apify_api_key=os.getenv('APIFY_API_KEY'),
+            mongodb_url=os.getenv('MONGO_DB_URL'),
+            serp_db_name=os.getenv('MONGODB_DB_NAME1'),
+            crawl_db_name=os.getenv('MONGODB_DB_NAME2')
+        )
+        
+        # Crawl the URLs
+        crawler.crawl_urls(results, search_term)
         
         return results
 

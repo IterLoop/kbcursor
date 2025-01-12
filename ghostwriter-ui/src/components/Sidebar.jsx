@@ -10,18 +10,14 @@ import {
 } from "@mui/material";
 import { useNavigate, useLocation } from "react-router-dom";
 import DashboardIcon from "@mui/icons-material/Dashboard";
-import StorageIcon from "@mui/icons-material/Storage";
 import SettingsIcon from "@mui/icons-material/Settings";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import AssessmentIcon from "@mui/icons-material/Assessment";
+import ArticleIcon from "@mui/icons-material/Article";
 
 const drawerWidth = 240;
 
 const menuItems = [
+  { text: "Articles", icon: <ArticleIcon />, path: "/articles" },
   { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
-  { text: "Crawlers", icon: <ListAltIcon />, path: "/crawlers" },
-  { text: "Data Explorer", icon: <StorageIcon />, path: "/data-explorer" },
-  { text: "Logs", icon: <AssessmentIcon />, path: "/logs" },
   { text: "Settings", icon: <SettingsIcon />, path: "/settings" },
 ];
 

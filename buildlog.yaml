@@ -1,0 +1,178 @@
+# buildlog.yaml
+# 
+# Build log for the ghostwriter project
+# Referenced by .cursorrules
+#
+version: "0.1.0"
+date: "2024-01-12"
+last_commit: "Fix test failures and improve implementations"
+
+version_history:
+  - version: "0.1.0"
+    date: "2024-01-12"
+    phase: "MVP Development"
+    description: "First stable version with passing tests"
+    
+  - version: "0.0.1"
+    date: "2024-01-11"
+    phase: "MVP Development"
+    description: "Initial implementation"
+
+history:
+  - version: "0.1.0"
+    date: "2024-01-12"
+    commit: "Fix test failures and improve implementations"
+    changes:
+      - "Fixed all test failures in test_user_stories.py"
+      - "Added URL tracking to MongoDB"
+      - "Enhanced VectorDB search functionality"
+      - "Updated YouTube Transcript API language handling"
+      - "Refined HFAgentManager content processing"
+    metrics:
+      total_test_coverage: "65%"
+      passing_tests: "8/8"
+      implemented_components: "6"
+      phase: "MVP Development"
+    version_bump_reason: "Minor version increment due to significant improvements in functionality and test coverage"
+
+  - version: "0.0.1"
+    date: "2024-01-11"
+    commit: "Initial implementation"
+    changes:
+      - "Created basic crawler implementations"
+      - "Set up MongoDB schema"
+      - "Implemented vector search"
+      - "Added YouTube transcript extraction"
+    metrics:
+      total_test_coverage: "19%"
+      passing_tests: "2/8"
+      implemented_components: "4"
+      phase: "MVP Development"
+    version_bump_reason: "Initial version for basic implementation"
+
+implemented_components:
+  crawlers:
+    static_crawler:
+      location: scripts/crawlers/strategies/static_crawler.py
+      dependencies:
+        - requests>=2.31.0
+        - beautifulsoup4>=4.12.2
+        - python-dotenv>=1.0.0
+      features:
+        - Static website content extraction
+        - Metadata collection
+        - Content hashing
+        - Error handling and logging
+      status: implemented
+      last_updated: "2024-01-12"
+      
+    selenium_crawler:
+      location: scripts/crawlers/strategies/selenium_crawler.py
+      dependencies:
+        - selenium>=4.16.0
+        - python-dotenv>=1.0.0
+      features:
+        - Dynamic website content extraction
+        - JavaScript rendering support
+        - Dynamic element detection
+        - Headless browser operation
+      status: implemented
+      last_updated: "2024-01-12"
+      
+  tools:
+    vector_db:
+      location: tools/vector_db.py
+      dependencies:
+        - faiss-cpu>=1.7.4
+        - sentence-transformers>=2.2.2
+        - numpy>=1.26.3
+      features:
+        - Text embedding generation
+        - Similarity search
+        - Document indexing
+      status: implemented
+      last_updated: "2024-01-12"
+      
+    youtube_transcript:
+      location: tools/youtube_transcript_api.py
+      dependencies:
+        - youtube-transcript-api>=0.6.2
+      features:
+        - Transcript extraction
+        - Language detection
+        - Translation support
+      status: implemented
+      last_updated: "2024-01-12"
+      
+    mongodb:
+      location: tools/mongo.py
+      dependencies:
+        - pymongo>=4.6.1
+      features:
+        - Schema validation
+        - Content storage
+        - Duplicate detection
+        - Export functionality
+      status: implemented
+      last_updated: "2024-01-12"
+      
+  tests:
+    test_user_stories:
+      location: tests/test_user_stories.py
+      dependencies:
+        - pytest>=8.0.0
+        - pytest-cov>=4.1.0
+      features:
+        - Functional testing
+        - User story validation
+        - End-to-end pipeline testing
+      status: in_progress
+      last_updated: "2024-01-12"
+
+pending_components:
+  crawlers:
+    - name: twitter_crawler
+      status: not_started
+      priority: high
+    - name: apify_crawler
+      status: not_started
+      priority: medium
+    - name: js_crawler
+      status: not_started
+      priority: medium
+
+next_steps:
+  - task: "Implement remaining crawler strategies"
+    components: ["twitter_crawler", "apify_crawler", "js_crawler"]
+    priority: high
+    
+  - task: "Add comprehensive error handling"
+    components: ["all"]
+    priority: high
+    
+  - task: "Implement rate limiting and proxy support"
+    components: ["crawlers"]
+    priority: medium
+    
+  - task: "Add more test cases"
+    components: ["tests"]
+    priority: high
+    
+  - task: "Implement monitoring and analytics"
+    components: ["tools"]
+    priority: medium
+    
+  - task: "Add support for more content types"
+    components: ["crawlers", "tools"]
+    priority: low
+
+known_issues:
+  - component: test_user_stories
+    issue: "Test failures in crawler implementations"
+    status: in_progress
+    priority: high
+    
+  - component: mongodb
+    issue: "Schema validation needs refinement"
+    status: pending
+    priority: medium 

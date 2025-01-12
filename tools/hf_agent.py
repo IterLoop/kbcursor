@@ -1,54 +1,82 @@
-from transformers import pipeline
+"""Hugging Face Agent Manager for text processing tasks."""
+
 import logging
-from typing import List, Dict, Any, Optional
-from .hf_tools import HFTools
+from typing import Dict, Any, Optional
+from transformers import pipeline
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class HFAgentManager:
+    """Manages Hugging Face tools for text processing."""
+    
     def __init__(self):
-        """Initialize the HF Agent Manager with tools and pipelines"""
-        self.logger = logging.getLogger(__name__)
-        self.tools = HFTools()
-        self._register_tools()
+        """Initialize HF Agent Manager."""
+        self.tools = {}
+        self._initialize_tools()
         
-    def _register_tools(self):
-        """Register available tools for text processing"""
-        self.registered_tools = {
-            'summarize': {
-                'name': "summarize",
-                'description': "Summarize input text",
-                'function': self.tools.summarize_text
-            },
-            'classify': {
-                'name': "classify",
-                'description': "Classify input text",
-                'function': self.tools.classify_text
-            },
-            'sentiment': {
-                'name': "sentiment",
-                'description': "Analyze sentiment of input text",
-                'function': self.tools.analyze_sentiment
-            }
-        }
-        
-    def process_content(self, content: str, task_type: str, **kwargs) -> Dict[str, Any]:
-        """Process content using specified task type"""
+    def _initialize_tools(self) -> None:
+        """Initialize available tools."""
         try:
-            if task_type not in self.registered_tools:
-                raise ValueError(f"Invalid task type: {task_type}")
-                
-            tool = self.registered_tools[task_type]
-            result = tool['function'](content, **kwargs)
-            return {"status": "success", "result": result}
-            
+            self.tools['summarize'] = pipeline("summarization", model="facebook/bart-large-cnn")
+            self.tools['classify'] = pipeline("text-classification", model="distilbert-base-uncased-finetuned-sst-2-english")
+            self.tools['sentiment'] = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
+            logger.info("Successfully initialized HF tools")
         except Exception as e:
-            self.logger.error(f"Error processing content with task {task_type}: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            logger.error(f"Error initializing HF tools: {str(e)}")
+            raise
+    
+    def process_content(self, text: str, task_type: str = 'summarize') -> Optional[Dict[str, Any]]:
+        """Process content using specified task.
+        
+        Args:
+            text: Text content to process
+            task_type: Type of processing task ('summarize', 'classify', 'sentiment')
             
-    def batch_process(self, contents: List[str], task_type: str, batch_size: int = 10, **kwargs) -> List[Dict[str, Any]]:
-        """Process multiple pieces of content in batches"""
-        results = []
-        for i in range(0, len(contents), batch_size):
-            batch = contents[i:i + batch_size]
-            batch_results = [self.process_content(content, task_type, **kwargs) for content in batch]
-            results.extend(batch_results)
-        return results 
+        Returns:
+            Dictionary containing processed content or None if error
+        """
+        try:
+            if task_type not in self.tools:
+                logger.error(f"Unknown task type: {task_type}")
+                return None
+                
+            tool = self.tools[task_type]
+            result = tool(text)
+            
+            # Create base processed content
+            processed = {
+                'text': text,  # Original text
+                'task_type': task_type,
+                'status': 'success'
+            }
+            
+            # Add task-specific results
+            if task_type == 'summarize':
+                processed['summary'] = result[0]['summary_text']
+            elif task_type == 'classify':
+                processed['classification'] = result[0]['label']
+                processed['confidence'] = result[0]['score']
+            elif task_type == 'sentiment':
+                processed['sentiment'] = result[0]['label']
+                processed['confidence'] = result[0]['score']
+                
+            logger.info(f"Successfully processed content with task: {task_type}")
+            return processed
+                
+        except Exception as e:
+            logger.error(f"Error processing content: {str(e)}")
+            return None
+    
+    def batch_process(self, texts: list, task_type: str = 'summarize') -> list:
+        """Process multiple pieces of content.
+        
+        Args:
+            texts: List of text content to process
+            task_type: Type of processing task
+            
+        Returns:
+            List of processed content
+        """
+        return [self.process_content(text, task_type) for text in texts] 

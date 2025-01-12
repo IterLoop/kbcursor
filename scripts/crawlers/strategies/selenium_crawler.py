@@ -1,82 +1,111 @@
-from datetime import datetime, UTC
-from typing import Optional
-from bs4 import BeautifulSoup
+"""Dynamic website crawler using Selenium."""
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-from tenacity import retry, stop_after_attempt, wait_exponential
+from datetime import datetime, UTC
+import hashlib
+import logging
+from typing import Dict, Any, Optional
 
-from ..base.base_crawler import BaseCrawler, CrawlResult
-from ..base.browser_pool import BrowserPool
-from logging import getLogger
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-logger = getLogger(__name__)
-
-class SeleniumCrawler(BaseCrawler):
-    """Selenium-based crawler implementation with browser pooling"""
+class SeleniumCrawler:
+    """Crawler for dynamic websites using Selenium."""
     
-    def __init__(self, proxy_manager=None, *, pool_size: int = 3):
-        super().__init__(proxy_manager)
-        self.user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        self.browser_pool = BrowserPool(size=pool_size)
-
-    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def crawl(self, url: str) -> Optional[CrawlResult]:
-        """Crawl a URL using Selenium with Chrome in headless mode"""
+    def __init__(self):
+        """Initialize Selenium crawler with Chrome driver."""
+        # Setup Chrome options
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')  # Run in headless mode
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        
+        # Initialize driver
+        self.driver = webdriver.Chrome(options=chrome_options)
+        self.wait = WebDriverWait(self.driver, 10)
+        
+    def scrape(self, url: str) -> Optional[Dict[str, Any]]:
+        """
+        Scrape content from a dynamic website.
+        Returns structured content or None if scraping fails.
+        """
         try:
-            logger.info(f"Attempting Selenium crawl for: {url}")
+            # Load page
+            self.driver.get(url)
             
-            # Setup Chrome options
-            chrome_options = Options()
-            chrome_options.add_argument('--headless')
-            chrome_options.add_argument('--no-sandbox')
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument(f'--user-agent={self.user_agent}')
+            # Wait for dynamic content
+            self.wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
             
-            # Add proxy if available
-            proxy = self._get_proxy()
-            if proxy:
-                logger.info(f"Using proxy: {proxy}")
-                chrome_options.add_argument(f'--proxy-server={proxy}')
+            # Extract content
+            title = self.driver.title
             
-            # Create and use webdriver
-            with webdriver.Chrome(options=chrome_options) as driver:
-                # Navigate to URL
-                driver.get(url)
-                
-                # Wait for body to be present
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.TAG_NAME, "body"))
-                )
-                
-                # Get page content
-                content = driver.page_source
-                soup = BeautifulSoup(content, "html.parser")
-                text = soup.get_text(separator=" ", strip=True)
-                
-                if not text:
-                    logger.warning(f"No text content found for {url}")
-                    return None
-                
-                # Create result
-                result = CrawlResult(
-                    url=url,
-                    title=driver.title,
-                    text=text,
-                    metadata={
-                        **self._extract_metadata(soup),
-                        'final_url': driver.current_url
-                    },
-                    crawl_time=datetime.now(UTC),
-                    method="selenium"
-                )
-                
-                return result
-                
+            # Get dynamic elements
+            dynamic_elements = []
+            for element in self.driver.find_elements(By.CSS_SELECTOR, '[data-dynamic], .dynamic-content'):
+                dynamic_elements.append({
+                    'type': element.tag_name,
+                    'text': element.text,
+                    'attributes': element.get_property('attributes')
+                })
+            
+            # Get main text content
+            text_elements = self.driver.find_elements(By.CSS_SELECTOR, 'p, article, section')
+            text = " ".join([elem.text for elem in text_elements])
+            
+            # Calculate content hash
+            content_hash = hashlib.md5(text.encode()).hexdigest()
+            
+            # Get word count
+            word_count = len(text.split())
+            
+            # Create metadata
+            metadata = {
+                'source_meta': {
+                    'title_tag': title,
+                    'meta_description': self.driver.find_element(By.CSS_SELECTOR, 'meta[name="description"]').get_attribute('content') if self.driver.find_elements(By.CSS_SELECTOR, 'meta[name="description"]') else "",
+                    'meta_keywords': self.driver.find_element(By.CSS_SELECTOR, 'meta[name="keywords"]').get_attribute('content') if self.driver.find_elements(By.CSS_SELECTOR, 'meta[name="keywords"]') else "",
+                    'dynamic_elements': dynamic_elements
+                },
+                'crawl_meta': {
+                    'method': 'selenium',
+                    'crawl_time': datetime.now(UTC),
+                    'updated_at': datetime.now(UTC),
+                    'content_hash': content_hash,
+                    'word_count': word_count,
+                    'status': 'success',
+                    'attempts': 1,
+                    'last_success': datetime.now(UTC),
+                    'last_failure': None,
+                    'failure_reason': None
+                }
+            }
+            
+            # Structure content
+            content = {
+                'url': url,
+                'title': title,
+                'text': text,
+                'metadata': metadata,
+                'method': 'selenium',
+                'crawl_time': datetime.now(UTC),
+                'updated_at': datetime.now(UTC),
+                'word_count': word_count,
+                'status': 'success',
+                'content_hash': content_hash,
+                'dynamic_elements': dynamic_elements
+            }
+            
+            return content
+            
         except Exception as e:
-            logger.error(f"Selenium crawler failed for {url}: {e}")
-            if proxy:
-                self._mark_proxy_failed(proxy)
-            return None 
+            logger.error(f"Error scraping {url}: {str(e)}")
+            return None
+            
+    def close(self):
+        """Close the browser."""
+        if self.driver:
+            self.driver.quit() 

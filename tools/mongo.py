@@ -1,287 +1,187 @@
-"""MongoDB database operations and schema validation."""
-import os
-from datetime import datetime
-from typing import Dict, Any, Optional, List, Union
-import logging
-from pymongo import MongoClient, ASCENDING
-from dotenv import load_dotenv
+"""MongoDB interface for the ghostwriter application."""
 
-# Setup logging
+import logging
+from datetime import datetime, UTC
+from typing import Dict, List, Optional, Any, Union
+from pymongo import MongoClient, ASCENDING
+from pymongo.collection import Collection
+from pymongo.database import Database
+from pymongo.results import InsertOneResult
+
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Database Schema
-SEARCH_SCHEMA = {
-    "query_term": str,
-    "timestamp": "datetime",
-    "results": [
-        {
-            "url": str,
-            "meta_tags": dict
-        }
-    ]
-}
-
-RAW_CONTENT_SCHEMA = {
-    "url": str,
-    "title": str,
-    "text": str,
-    "metadata": {
-        "source_meta": dict,  # Original metadata from source
-        "crawl_meta": {
-            "method": str,
-            "crawl_time": "datetime",
-            "updated_at": "datetime",
-            "content_hash": str,
-            "word_count": int,
-            "status": str,
-            "attempts": int,
-            "last_success": "datetime",
-            "last_failure": "datetime",
-            "failure_reason": str
-        }
-    },
-    "method": str,
-    "crawl_time": "datetime",
-    "updated_at": "datetime",
-    "word_count": int,
-    "status": str,
-    "content_hash": str
-}
-
-PROCESSED_CONTENT_SCHEMA = {
-    "url": str,
-    "title": str,
-    "subtitle": str,
-    "author": str,
-    "published_date": str,
-    "key_points": list,
-    "key_statistics": list,
-    "notable_quotes": list,
-    "source": str,
-    "category_tags": list,
-    "body_text": str,
-    "metadata": {
-        "source_meta": dict,  # Original metadata from source
-        "process_meta": {
-            "process_time": float,
-            "content_type": str,
-            "word_count": int,
-            "processing_version": str,
-            "last_updated": "datetime",
-            "update_history": list,  # List of update timestamps and reasons
-            "status": str
-        }
-    },
-    "additional_fields": dict,
-    "process_time": float,
-    "content_type": str
-}
-
-class MongoValidator:
-    """Handles MongoDB data validation and sanitization."""
+class MongoDB:
+    """MongoDB database interface."""
     
-    @staticmethod
-    def validate_type(value: Any, expected_type: Union[type, str]) -> bool:
-        """Validate if a value matches the expected type."""
-        if expected_type == "datetime":
-            return isinstance(value, (datetime, str)) and bool(value)
-        return isinstance(value, expected_type)
-
-    @staticmethod
-    def validate_schema(data: Dict[str, Any], schema: Dict[str, Any], path: str = "") -> List[str]:
-        """
-        Validate data against a schema and return list of validation errors.
-        Returns empty list if validation passes.
-        """
-        errors = []
+    def __init__(self, mongo_url: str, db_name: str = "ghostwriter"):
+        """Initialize MongoDB connection.
         
-        for key, expected_type in schema.items():
-            current_path = f"{path}.{key}" if path else key
-            
-            # Check if required field exists
-            if key not in data:
-                errors.append(f"Missing required field: {current_path}")
-                continue
-                
-            value = data[key]
-            
-            # Handle nested dictionaries
-            if isinstance(expected_type, dict):
-                if not isinstance(value, dict):
-                    errors.append(f"Field {current_path} should be a dictionary")
-                else:
-                    errors.extend(MongoValidator.validate_schema(value, expected_type, current_path))
-                continue
-                
-            # Handle lists of dictionaries
-            if isinstance(expected_type, list):
-                if not isinstance(value, list):
-                    errors.append(f"Field {current_path} should be a list")
-                else:
-                    for i, item in enumerate(value):
-                        if not isinstance(item, dict):
-                            errors.append(f"Item {i} in {current_path} should be a dictionary")
-                        else:
-                            errors.extend(MongoValidator.validate_schema(item, expected_type[0], f"{current_path}[{i}]"))
-                continue
-                
-            # Validate type
-            if not MongoValidator.validate_type(value, expected_type):
-                errors.append(f"Field {current_path} should be of type {expected_type.__name__}")
-        
-        return errors
-
-    @staticmethod
-    def sanitize_data(data: Dict[str, Any], schema: Dict[str, Any]) -> Dict[str, Any]:
+        Args:
+            mongo_url: MongoDB connection URL
+            db_name: Name of the database to use
         """
-        Sanitize data to match schema. Handles missing or invalid fields by:
-        - Adding missing required fields with default values
-        - Converting types where possible
-        - Removing fields not in schema
-        """
-        sanitized = {}
-        
-        for key, expected_type in schema.items():
-            value = data.get(key)
-            
-            # Handle missing values
-            if value is None:
-                if expected_type == str:
-                    sanitized[key] = ""
-                elif expected_type == int:
-                    sanitized[key] = 0
-                elif expected_type == float:
-                    sanitized[key] = 0.0
-                elif expected_type == list:
-                    sanitized[key] = []
-                elif expected_type == dict:
-                    sanitized[key] = {}
-                elif expected_type == "datetime":
-                    sanitized[key] = datetime.utcnow()
-                continue
-                
-            # Handle type conversions
-            try:
-                if expected_type == str:
-                    sanitized[key] = str(value)
-                elif expected_type == int:
-                    sanitized[key] = int(float(value))
-                elif expected_type == float:
-                    sanitized[key] = float(value)
-                elif expected_type == list and not isinstance(value, list):
-                    sanitized[key] = [value]
-                elif expected_type == dict and not isinstance(value, dict):
-                    sanitized[key] = {"value": value}
-                elif expected_type == "datetime" and isinstance(value, str):
-                    try:
-                        sanitized[key] = datetime.fromisoformat(value.replace('Z', '+00:00'))
-                    except ValueError:
-                        sanitized[key] = datetime.utcnow()
-                else:
-                    sanitized[key] = value
-            except (ValueError, TypeError):
-                # If conversion fails, use default value
-                if expected_type == str:
-                    sanitized[key] = str(value) if value is not None else ""
-                elif expected_type in (int, float):
-                    sanitized[key] = 0
-                elif expected_type == list:
-                    sanitized[key] = []
-                elif expected_type == dict:
-                    sanitized[key] = {}
-                elif expected_type == "datetime":
-                    sanitized[key] = datetime.utcnow()
-        
-        return sanitized
-
-    @staticmethod
-    def prepare_for_mongodb(data: Dict[str, Any], schema: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Prepare data for MongoDB storage:
-        1. Validate against schema
-        2. Sanitize data if needed
-        3. Return clean data ready for storage
-        """
-        # First validate
-        errors = MongoValidator.validate_schema(data, schema)
-        
-        if errors:
-            # Log validation errors
-            logger.warning("Data validation errors:")
-            for error in errors:
-                logger.warning(f"- {error}")
-            
-            # Sanitize data
-            logger.info("Attempting to sanitize data...")
-            data = MongoValidator.sanitize_data(data, schema)
-            
-            # Validate again after sanitization
-            errors = MongoValidator.validate_schema(data, schema)
-            if errors:
-                logger.error("Data still invalid after sanitization:")
-                for error in errors:
-                    logger.error(f"- {error}")
-                raise ValueError("Data validation failed even after sanitization")
-        
-        return data
-
-class MongoManager:
-    """Manages MongoDB database operations."""
+        try:
+            self.client = MongoClient(mongo_url)
+            self.db: Database = self.client[db_name]
+            self._create_collections()
+            self._create_indexes()
+            logger.info(f"Successfully connected to MongoDB database: {db_name}")
+        except Exception as e:
+            logger.error(f"Error connecting to MongoDB: {str(e)}")
+            raise
     
-    def __init__(self):
-        """Initialize MongoDB connection and setup databases."""
-        self.client = MongoClient(os.getenv('MONGO_DB_URL'))
-        self.search_db = self.client[os.getenv('MONGODB_DB_NAME1')]
-        self.content_db = self.client[os.getenv('MONGODB_DB_NAME2')]
-        self.validator = MongoValidator()
-        
-    def init_search_db(self):
-        """Initialize search database with proper collections and indexes."""
-        searches = self.search_db['searches']
-        
-        # Create indexes
-        searches.create_index([("query_term", ASCENDING)], background=True)
-        searches.create_index([("timestamp", ASCENDING)], background=True)
-        searches.create_index([("results.url", ASCENDING)], background=True)
-        
-        logger.info(f"Initialized search database '{self.search_db.name}' with indexes")
-        
-    def init_content_db(self):
-        """Initialize content database with proper collections and indexes."""
-        # Create raw_content collection with indexes
-        raw_content = self.content_db['raw_content']
-        raw_content.create_index([("url", ASCENDING)], unique=True, background=True)
-        raw_content.create_index([("crawl_time", ASCENDING)], background=True)
-        raw_content.create_index([("content_hash", ASCENDING)], background=True)
-        
-        # Create processed_content collection with indexes
-        processed_content = self.content_db['processed_content']
-        processed_content.create_index([("url", ASCENDING)], background=True)
-        processed_content.create_index([("process_time", ASCENDING)], background=True)
-        processed_content.create_index([("content_type", ASCENDING)], background=True)
-        
-        logger.info(f"Initialized content database '{self.content_db.name}' with indexes")
-        
-    def verify_database_structure(self):
-        """Verify that all collections and indexes are properly set up."""
-        # Verify search database
-        search_indexes = self.search_db['searches'].list_indexes()
-        logger.info("\nSearch Database Indexes:")
-        for idx in search_indexes:
-            logger.info(f"- {idx['name']}: {idx['key']}")
-        
-        # Verify content database
-        raw_indexes = self.content_db['raw_content'].list_indexes()
-        logger.info("\nRaw Content Indexes:")
-        for idx in raw_indexes:
-            logger.info(f"- {idx['name']}: {idx['key']}")
-        
-        processed_indexes = self.content_db['processed_content'].list_indexes()
-        logger.info("\nProcessed Content Indexes:")
-        for idx in processed_indexes:
-            logger.info(f"- {idx['name']}: {idx['key']}")
+    def _create_collections(self) -> None:
+        """Create required collections if they don't exist."""
+        collections = ["raw_content", "processed_content", "url_tracking"]
+        for collection in collections:
+            if collection not in self.db.list_collection_names():
+                self.db.create_collection(collection)
+    
+    def _create_indexes(self) -> None:
+        """Create required indexes."""
+        try:
+            # Raw content indexes
+            self.db.raw_content.create_index([("url", ASCENDING)], unique=True)
+            self.db.raw_content.create_index([("content_hash", ASCENDING)])
             
-    def close(self):
-        """Close MongoDB connection."""
-        self.client.close()
+            # Processed content indexes
+            self.db.processed_content.create_index([("original_id", ASCENDING)])
+            self.db.processed_content.create_index([("processed_date", ASCENDING)])
+            
+            # URL tracking indexes
+            self.db.url_tracking.create_index([("url", ASCENDING)], unique=True)
+            self.db.url_tracking.create_index([("last_crawl", ASCENDING)])
+            
+            logger.info("Successfully created MongoDB indexes")
+        except Exception as e:
+            logger.error(f"Error creating indexes: {str(e)}")
+            raise
+        
+    def store_raw_content(self, content: Dict[str, Any]) -> Optional[str]:
+        """Store raw content in the database.
+        
+        Args:
+            content: Dictionary containing the raw content
+            
+        Returns:
+            ID of the inserted document or None if duplicate
+        """
+        try:
+            # Check for required fields
+            required_fields = ['url', 'title', 'text', 'metadata', 'content_hash']
+            if not all(field in content for field in required_fields):
+                logger.error("Missing required fields in content")
+                return None
+            
+            # Check for duplicate URL
+            if self.db.raw_content.find_one({"url": content["url"]}):
+                logger.info(f"Duplicate URL found: {content['url']}")
+                return None
+            
+            # Check for duplicate content hash
+            if self.db.raw_content.find_one({"content_hash": content["content_hash"]}):
+                logger.info(f"Duplicate content hash found: {content['content_hash']}")
+                return None
+                
+            # Insert content
+            result: InsertOneResult = self.db.raw_content.insert_one(content)
+            
+            # Update URL tracking
+            self._update_url_tracking(content["url"])
+            
+            logger.info(f"Successfully stored raw content with ID: {result.inserted_id}")
+            return str(result.inserted_id)
+            
+        except Exception as e:
+            logger.error(f"Error storing raw content: {str(e)}")
+            return None
+            
+    def store_processed_content(self, content: Dict[str, Any]) -> Optional[str]:
+        """Store processed content in the database.
+        
+        Args:
+            content: Dictionary containing the processed content
+            
+        Returns:
+            ID of the inserted document or None if error
+        """
+        try:
+            # Check for required fields
+            required_fields = ['text', 'summary', 'processed_date']
+            if not all(field in content for field in required_fields):
+                logger.error("Missing required fields in processed content")
+                return None
+            
+            # Insert content
+            result: InsertOneResult = self.db.processed_content.insert_one(content)
+            logger.info(f"Successfully stored processed content with ID: {result.inserted_id}")
+            return str(result.inserted_id)
+            
+        except Exception as e:
+            logger.error(f"Error storing processed content: {str(e)}")
+            return None
+            
+    def export_processed_content(self) -> List[Dict[str, Any]]:
+        """Export all processed content.
+        
+        Returns:
+            List of processed content documents
+        """
+        try:
+            cursor = self.db.processed_content.find({})
+            return list(cursor)
+        except Exception as e:
+            logger.error(f"Error exporting processed content: {str(e)}")
+            return []
+            
+    def _update_url_tracking(self, url: str) -> None:
+        """Update URL tracking information.
+        
+        Args:
+            url: URL to update tracking for
+        """
+        try:
+            self.db.url_tracking.update_one(
+                {"url": url},
+                {
+                    "$set": {
+                        "last_crawl": datetime.now(UTC).isoformat(),
+                        "crawl_count": 1
+                    },
+                    "$setOnInsert": {"first_crawl": datetime.now(UTC).isoformat()}
+                },
+                upsert=True
+            )
+        except Exception as e:
+            logger.error(f"Error updating URL tracking: {str(e)}")
+    
+    def get_reliable_urls(self, min_crawls: int = 3) -> List[str]:
+        """Get list of reliable URLs that have been successfully crawled multiple times.
+        
+        Args:
+            min_crawls: Minimum number of successful crawls required
+            
+        Returns:
+            List of reliable URLs
+        """
+        try:
+            cursor = self.db.url_tracking.find(
+                {"crawl_count": {"$gte": min_crawls}},
+                {"url": 1}
+            )
+            return [doc["url"] for doc in cursor]
+        except Exception as e:
+            logger.error(f"Error getting reliable URLs: {str(e)}")
+            return []
+    
+    def clear_test_data(self) -> None:
+        """Clear all test data from the database."""
+        try:
+            self.db.raw_content.delete_many({})
+            self.db.processed_content.delete_many({})
+            self.db.url_tracking.delete_many({})
+            logger.info("Successfully cleared test data")
+        except Exception as e:
+            logger.error(f"Error clearing test data: {str(e)}")

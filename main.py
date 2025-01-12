@@ -9,6 +9,7 @@ from bson import ObjectId, json_util
 import json
 from datetime import datetime
 from pydantic import BaseModel
+from scripts.api.search_terms_generator import SearchTermGenerator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -141,7 +142,7 @@ async def generate_article_prompt(request: ArticleRequest):
         result = db['article_requests'].insert_one(article_request)
         
         # Generate agent prompt (placeholder for now)
-        agent_prompt = f"""Create an article about {request.outline}
+        agent_prompt = f"""Search for information about {request.outline}
 Audience: {request.audience}
 Style: {request.writing_style}
 Imagination Level: {request.imagination_level}
@@ -166,4 +167,32 @@ Date Range: {request.date_range.start} to {request.date_range.end}"""
         
     except Exception as e:
         logger.error(f"Error in generate_article_prompt: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/articles/generate_search_terms")
+async def generate_search_terms(article_request: ArticleRequest):
+    try:
+        generator = SearchTermGenerator()
+        search_terms = generator.generate_search_terms(
+            topic=article_request.outline,
+            params={
+                "audience": article_request.audience,
+                "writing_style": article_request.writing_style,
+                "imagination_level": article_request.imagination_level,
+                "research_level": article_request.research_level,
+                "date_from": article_request.date_range.start,
+                "date_to": article_request.date_range.end
+            }
+        )
+        
+        return {
+            "search_terms": search_terms,
+            "date_range": {
+                "start": article_request.date_range.start,
+                "end": article_request.date_range.end
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating search terms: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

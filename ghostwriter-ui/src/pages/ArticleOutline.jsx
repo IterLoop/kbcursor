@@ -1,8 +1,8 @@
-import { Box, Typography, Container, TextField, FormControl, InputLabel, Select, MenuItem, Slider, Button, Paper, CircularProgress, RadioGroup, FormControlLabel, Radio } from '@mui/material';
+import { Box, Typography, Container, TextField, FormControl, InputLabel, Select, MenuItem, Slider, Button, Paper, CircularProgress, RadioGroup, FormControlLabel, Radio, Checkbox, FormGroup } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format, subMonths, subWeeks } from 'date-fns';
 
 function ArticleOutline() {
@@ -14,6 +14,8 @@ function ArticleOutline() {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
+  const [searchTerms, setSearchTerms] = useState([]);
+  const [selectedTerms, setSelectedTerms] = useState([]);
   
   // Date range states
   const [dateRangeType, setDateRangeType] = useState('relative'); // 'relative' or 'custom'
@@ -113,10 +115,105 @@ function ArticleOutline() {
 
       const data = await response.json();
       setResponse(data);
+
+      // Call the search terms generator after generating the article prompt
+      await handleGenerateSearchTerms();
+
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateSearchTerms = async () => {
+    try {
+      const dateRange = getDateRange();
+      const response = await fetch('http://localhost:8000/api/v1/articles/generate_search_terms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          outline,
+          audience,
+          writing_style: writingStyle,
+          imagination_level: imaginationLevel,
+          research_level: researchLevel,
+          date_range: dateRange
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate search terms');
+      }
+
+      const data = await response.json();
+      setSearchTerms(data.search_terms);
+      setSelectedTerms(data.search_terms);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleSearchTermChange = (event) => {
+    const term = event.target.name;
+    const isChecked = event.target.checked;
+    setSelectedTerms(prevTerms => 
+      isChecked 
+        ? [...prevTerms, term]
+        : prevTerms.filter(t => t !== term)
+    );
+  };
+
+  const handleGenerateMoreTerms = async () => {
+    try {
+      const dateRange = getDateRange();
+      const response = await fetch('http://localhost:8000/api/v1/articles/generate_terms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          outline,
+          audience,
+          writing_style: writingStyle,
+          imagination_level: imaginationLevel,
+          research_level: researchLevel,
+          date_range: dateRange
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate more search terms');
+      }
+
+      const data = await response.json();
+      setSearchTerms(prevTerms => [...prevTerms, ...data.search_terms]);
+      setSelectedTerms(prevTerms => [...prevTerms, ...data.search_terms]);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleStartScraping = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/articles/start_scraping', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ search_terms: selectedTerms }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to start scraping process');
+      }
+
+      // Handle successful scraping initiation
+      console.log('Scraping started successfully');
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -247,13 +344,37 @@ function ArticleOutline() {
             </Typography>
             
             <Typography variant="h6" gutterBottom>Search Terms:</Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
-              {response.search_terms.map((term, index) => (
-                <Paper key={index} sx={{ p: 1 }} variant="outlined">
-                  {term}
-                </Paper>
+            <FormGroup sx={{ mb: 2 }}>
+              {searchTerms.map((term, index) => (
+                <FormControlLabel
+                  key={index}
+                  control={
+                    <Checkbox
+                      checked={selectedTerms.includes(term)}
+                      onChange={handleSearchTermChange}
+                      name={term}
+                    />
+                  }
+                  label={term}
+                />
               ))}
-            </Box>
+            </FormGroup>
+
+            <Button 
+              variant="outlined"
+              onClick={handleGenerateMoreTerms}
+              sx={{ mr: 2 }}
+            >
+              Generate More Terms
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleStartScraping}
+              disabled={selectedTerms.length === 0}
+            >
+              Start Scraping
+            </Button>
 
             <Typography variant="h6" gutterBottom>Date Range:</Typography>
             <Typography>

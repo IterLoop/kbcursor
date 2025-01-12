@@ -25,7 +25,7 @@ class SearchTermGenerator:
             mongo_url=MONGO_CONFIG['MONGO_DB_URL'],
             db_name=MONGO_CONFIG['MONGODB_DB_NAME1']
         )
-        self.article_requests = self.mongo.db['article_requests']
+        self.article_requests = self.mongo.db['search_data']['article_requests']
 
     def validate_search_terms(self, terms: List[str], min_terms: int, max_terms: int) -> Tuple[bool, str]:
         """
@@ -139,8 +139,6 @@ class SearchTermGenerator:
         imagination_level = params.get('imagination_level', 3)
         research_level = params.get('research_level', 3)
         audience = params.get('audience', 'general')
-        date_from = params.get('date_from')
-        date_to = params.get('date_to')
         
         # Get term count range based on levels
         min_terms, max_terms = self.get_term_count_range(
@@ -162,16 +160,12 @@ class SearchTermGenerator:
             
         guidance_text = ". ".join(guidance) + "." if guidance else ""
         
-        date_range = ""
-        if date_from and date_to:
-            date_range = f" within date range {date_from} to {date_to}"
-        
         return (
             f"Topic: {topic}\n"
             f"Parameters:\n"
             f"- Audience: {audience}\n"
             f"- Imagination Level: {imagination_level}/5\n"
-            f"- Research Level: {research_level}/5{date_range}\n"
+            f"- Research Level: {research_level}/5\n"
             f"- Required Terms: {min_terms}-{max_terms}\n\n"
             f"Additional Guidance: {guidance_text}\n"
         )

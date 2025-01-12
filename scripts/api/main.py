@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, UTC
 from bson import ObjectId
 import json
+from pydantic import BaseModel
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -41,6 +42,18 @@ logger.info(f"Connected to database: {db.name}")
 logger.info(f"Available collections: {db.list_collection_names()}")
 logger.info(f"Raw content count: {db['raw_content'].count_documents({})}")
 logger.info(f"Processed content count: {db['processed_content'].count_documents({})}")
+
+class ArticleRequest(BaseModel):
+    outline: str
+    audience: str
+    writing_style: str
+    imagination_level: int
+    research_level: int
+    date_range: Dict[str, str]
+
+class SearchTermsResponse(BaseModel):
+    search_terms: List[str]
+    date_range: Dict[str, str]
 
 @app.get("/api/v1/data/content")
 async def get_content(
@@ -181,6 +194,74 @@ async def rescrape_url(url_data: dict):
     except Exception as e:
         logger.error(f"Error in rescrape_url: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/articles/generate", response_model=SearchTermsResponse)
+def generate_article_prompt(article_request: ArticleRequest):
+    generator = SearchTermGenerator()
+    search_terms = generator.generate_search_terms(
+        topic=article_request.outline,
+        params={
+            "audience": article_request.audience,
+            "writing_style": article_request.writing_style,
+            "imagination_level": article_request.imagination_level,
+            "research_level": article_request.research_level,
+            "date_from": article_request.date_range["start"],
+            "date_to": article_request.date_range["end"]
+        }
+    )
+    
+    return SearchTermsResponse(
+        search_terms=search_terms,
+        date_range=article_request.date_range
+    )
+
+@app.post("/api/v1/articles/generate_terms", response_model=SearchTermsResponse)
+def generate_more_search_terms(article_request: ArticleRequest):
+    generator = SearchTermGenerator()
+    
+    # Find the most recent article request
+    article_request_doc = generator.article_requests.find_one(
+        sort=[("created_at", -1)]
+    )
+    
+    if not article_request_doc:
+        raise HTTPException(status_code=404, detail="No article request found to generate more terms for")
+    
+    additional_terms = generator.generate_search_terms(
+        topic=article_request_doc["outline"], 
+        params={
+            "audience": article_request.audience,
+            "writing_style": article_request.writing_style,
+            "imagination_level": article_request.imagination_level,
+            "research_level": article_request.research_level,
+            "date_from": article_request.date_range["start"],
+            "date_to": article_request.date_range["end"]
+        }
+    )
+    
+    # Combine existing and new terms
+    all_terms = article_request_doc.get("search_terms", []) + additional_terms
+    
+    # Update article request with new terms
+    generator.article_requests.update_one(
+        {"_id": article_request_doc["_id"]},
+        {"$set": {"search_terms": all_terms}}
+    )
+    
+    return SearchTermsResponse(
+        search_terms=all_terms,
+        date_range=article_request.date_range
+    )
+
+@app.post("/api/v1/articles/start_scraping")
+def start_article_scraping(search_terms: List[str]):
+    generator = SearchTermGenerator()
+    
+    try:
+        generator.start_scraping(search_terms)
+        return {"message": "Scraping process started successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start scraping: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

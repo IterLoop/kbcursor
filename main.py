@@ -48,6 +48,11 @@ def serialize_mongodb(data: Any) -> Any:
     """Serialize MongoDB data including ObjectId and datetime."""
     return json.loads(json.dumps(data, cls=MongoJSONEncoder))
 
+# Add Pydantic model for date range
+class DateRange(BaseModel):
+    start: str
+    end: str
+
 # Add Pydantic model for article request
 class ArticleRequest(BaseModel):
     outline: str
@@ -55,6 +60,7 @@ class ArticleRequest(BaseModel):
     writing_style: str
     imagination_level: int
     research_level: int
+    date_range: DateRange
 
 @app.get("/api/v1/data/content")
 async def get_content(
@@ -139,7 +145,8 @@ async def generate_article_prompt(request: ArticleRequest):
 Audience: {request.audience}
 Style: {request.writing_style}
 Imagination Level: {request.imagination_level}
-Research Level: {request.research_level}"""
+Research Level: {request.research_level}
+Date Range: {request.date_range.start} to {request.date_range.end}"""
 
         # Generate search terms (placeholder for now)
         search_terms = [word for word in request.outline.split() if len(word) > 3]
@@ -149,8 +156,8 @@ Research Level: {request.research_level}"""
             "agent_prompt": agent_prompt,
             "search_terms": search_terms,
             "date_range": {
-                "start": "2023-01-01",
-                "end": "2024-01-12"
+                "start": request.date_range.start,
+                "end": request.date_range.end
             }
         }
         

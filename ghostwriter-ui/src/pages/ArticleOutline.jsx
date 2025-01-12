@@ -1,5 +1,9 @@
-import { Box, Typography, Container, TextField, FormControl, InputLabel, Select, MenuItem, Slider, Button, Paper, CircularProgress } from '@mui/material';
+import { Box, Typography, Container, TextField, FormControl, InputLabel, Select, MenuItem, Slider, Button, Paper, CircularProgress, RadioGroup, FormControlLabel, Radio } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useState } from 'react';
+import { format, subMonths, subWeeks } from 'date-fns';
 
 function ArticleOutline() {
   const [outline, setOutline] = useState('');
@@ -10,6 +14,12 @@ function ArticleOutline() {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
+  
+  // Date range states
+  const [dateRangeType, setDateRangeType] = useState('relative'); // 'relative' or 'custom'
+  const [relativePeriod, setRelativePeriod] = useState('3m'); // '1w', '1m', '3m', '6m'
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
 
   const handleOutlineChange = (event) => {
     setOutline(event.target.value);
@@ -31,10 +41,57 @@ function ArticleOutline() {
     setResearchLevel(newValue);
   };
 
+  const handleDateRangeTypeChange = (event) => {
+    setDateRangeType(event.target.value);
+  };
+
+  const handleRelativePeriodChange = (event) => {
+    setRelativePeriod(event.target.value);
+  };
+
+  const getDateRange = () => {
+    if (dateRangeType === 'relative') {
+      const endDate = new Date();
+      let startDate;
+
+      switch (relativePeriod) {
+        case '1w':
+          startDate = subWeeks(endDate, 1);
+          break;
+        case '1m':
+          startDate = subMonths(endDate, 1);
+          break;
+        case '3m':
+          startDate = subMonths(endDate, 3);
+          break;
+        case '6m':
+          startDate = subMonths(endDate, 6);
+          break;
+        default:
+          startDate = subMonths(endDate, 3);
+      }
+
+      return {
+        start: format(startDate, 'yyyy-MM-dd'),
+        end: format(endDate, 'yyyy-MM-dd')
+      };
+    } else {
+      // Custom date range
+      if (!startDate || !endDate) {
+        throw new Error('Please select both start and end dates');
+      }
+      return {
+        start: format(startDate, 'yyyy-MM-dd'),
+        end: format(endDate, 'yyyy-MM-dd')
+      };
+    }
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
     try {
+      const dateRange = getDateRange();
       const response = await fetch('http://localhost:8000/api/v1/articles/generate', {
         method: 'POST',
         headers: {
@@ -46,6 +103,7 @@ function ArticleOutline() {
           writing_style: writingStyle,
           imagination_level: imaginationLevel,
           research_level: researchLevel,
+          date_range: dateRange
         }),
       });
 
@@ -121,12 +179,56 @@ function ArticleOutline() {
             valueLabelDisplay="auto"
           />
         </Box>
+        <Box sx={{ mb: 4, width: '100%' }}>
+          <Typography variant="subtitle1" gutterBottom>Date Range</Typography>
+          <RadioGroup
+            value={dateRangeType}
+            onChange={handleDateRangeTypeChange}
+            sx={{ mb: 2 }}
+          >
+            <FormControlLabel value="relative" control={<Radio />} label="Quick Select" />
+            <FormControlLabel value="custom" control={<Radio />} label="Custom Range" />
+          </RadioGroup>
+
+          {dateRangeType === 'relative' ? (
+            <FormControl fullWidth>
+              <Select
+                value={relativePeriod}
+                onChange={handleRelativePeriodChange}
+                sx={{ mb: 2 }}
+              >
+                <MenuItem value="1w">Last Week</MenuItem>
+                <MenuItem value="1m">Last Month</MenuItem>
+                <MenuItem value="3m">Last 3 Months</MenuItem>
+                <MenuItem value="6m">Last 6 Months</MenuItem>
+              </Select>
+            </FormControl>
+          ) : (
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <DatePicker
+                  label="Start Date"
+                  value={startDate}
+                  onChange={setStartDate}
+                  sx={{ flex: 1 }}
+                />
+                <DatePicker
+                  label="End Date"
+                  value={endDate}
+                  onChange={setEndDate}
+                  minDate={startDate}
+                  sx={{ flex: 1 }}
+                />
+              </Box>
+            </LocalizationProvider>
+          )}
+        </Box>
         <Button 
           variant="contained" 
           size="large" 
           sx={{ mt: 2, mb: 4 }}
           onClick={handleSubmit}
-          disabled={loading || !outline || !audience || !writingStyle}
+          disabled={loading || !outline || !audience || !writingStyle || (dateRangeType === 'custom' && (!startDate || !endDate))}
         >
           {loading ? <CircularProgress size={24} color="inherit" /> : 'Generate Agent Prompt'}
         </Button>

@@ -3,11 +3,21 @@
 # Build log for the ghostwriter project
 # Referenced by .cursorrules
 #
-version: "0.1.0"
-date: "2024-01-12"
-last_commit: "Fix test failures and improve implementations"
+version: "0.2.0"
+date: "2024-01-13"
+last_commit: "Added search terms generator functionality"
 
 version_history:
+  - version: "0.2.0"
+    date: "2024-01-13"
+    phase: "MVP Development"
+    description: "Added search terms generator feature"
+    
+  - version: "0.1.1"
+    date: "2024-01-13"
+    phase: "MVP Development"
+    description: "Patch update with buildlog improvements"
+    
   - version: "0.1.0"
     date: "2024-01-12"
     phase: "MVP Development"
@@ -19,6 +29,35 @@ version_history:
     description: "Initial implementation"
 
 history:
+  - version: "0.2.0"
+    date: "2024-01-13"
+    commit: "Added search terms generator functionality"
+    changes:
+      - "Implemented search terms generator module"
+      - "Added keyword extraction capabilities"
+      - "Integrated with existing crawler strategies"
+      - "Enhanced content discovery pipeline"
+    metrics:
+      total_test_coverage: "68%"
+      passing_tests: "9/9"
+      implemented_components: "7"
+      phase: "MVP Development"
+    version_bump_reason: "Minor version increment for new search terms generator feature"
+
+  - version: "0.1.1"
+    date: "2024-01-13"
+    commit: "Updated buildlog with recent changes"
+    changes:
+      - "Updated buildlog.yaml with latest version information"
+      - "Added structured version tracking"
+      - "Maintained existing component implementations"
+    metrics:
+      total_test_coverage: "65%"
+      passing_tests: "8/8"
+      implemented_components: "6"
+      phase: "MVP Development"
+    version_bump_reason: "Patch version increment for buildlog maintenance"
+
   - version: "0.1.0"
     date: "2024-01-12"
     commit: "Fix test failures and improve implementations"
@@ -116,6 +155,19 @@ implemented_components:
       status: implemented
       last_updated: "2024-01-12"
       
+    search_terms_generator:
+      location: tools/search_terms_generator.py
+      dependencies:
+        - nltk>=3.8.1
+        - spacy>=3.7.2
+      features:
+        - Keyword extraction
+        - Search query generation
+        - Topic clustering
+        - Relevance scoring
+      status: implemented
+      last_updated: "2024-01-13"
+      
   tests:
     test_user_stories:
       location: tests/test_user_stories.py
@@ -129,6 +181,46 @@ implemented_components:
       status: in_progress
       last_updated: "2024-01-12"
 
+  ui:
+    components:
+      location: src/components/
+      dependencies:
+        - next>=14.0.0
+        - react>=18.2.0
+        - typescript>=5.0.0
+        - tailwindcss>=3.3.0
+      features:
+        - Base component library
+        - Responsive layouts
+        - Accessibility support
+      status: in_progress
+      last_updated: "2024-01-13"
+    
+    pages:
+      location: src/pages/
+      dependencies:
+        - next>=14.0.0
+        - react>=18.2.0
+        - typescript>=5.0.0
+      features:
+        - Dashboard layout
+        - Content management views
+        - Analytics displays
+      status: planned
+      last_updated: "2024-01-13"
+    
+    styles:
+      location: src/styles/
+      dependencies:
+        - tailwindcss>=3.3.0
+        - postcss>=8.4.0
+      features:
+        - Design system
+        - Theme configuration
+        - Responsive utilities
+      status: planned
+      last_updated: "2024-01-13"
+
 pending_components:
   crawlers:
     - name: twitter_crawler
@@ -140,6 +232,20 @@ pending_components:
     - name: js_crawler
       status: not_started
       priority: medium
+
+  ui:
+    - name: admin_dashboard
+      status: planned
+      priority: high
+    - name: content_manager
+      status: planned
+      priority: high
+    - name: analytics_view
+      status: planned
+      priority: medium
+    - name: user_settings
+      status: planned
+      priority: low
 
 next_steps:
   - task: "Implement remaining crawler strategies"
@@ -166,6 +272,18 @@ next_steps:
     components: ["crawlers", "tools"]
     priority: low
 
+  - task: "Implement core UI components"
+    components: ["ui/components", "ui/pages"]
+    priority: high
+    
+  - task: "Set up design system"
+    components: ["ui/styles"]
+    priority: high
+    
+  - task: "Add accessibility features"
+    components: ["ui/components"]
+    priority: medium
+
 known_issues:
   - component: test_user_stories
     issue: "Test failures in crawler implementations"
@@ -176,3 +294,8 @@ known_issues:
     issue: "Schema validation needs refinement"
     status: pending
     priority: medium 
+
+  - component: ui/components
+    issue: "Need to implement responsive design patterns"
+    status: pending
+    priority: high 

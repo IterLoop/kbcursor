@@ -109,9 +109,9 @@ class SearchTermGenerator:
         Returns:
             tuple: (min_terms, max_terms)
         """
-        # Base range is 5-8 terms
+        # Base range is 5-10 terms
         base_min = 5
-        base_max = 8
+        base_max = 10
         
         # Calculate additional terms based on levels
         # Each level above 3 adds to the range
@@ -418,7 +418,7 @@ def main():
     """Run test generation with sample parameters."""
     # Test article parameters with high imagination and research levels
     test_params = {
-        "topic": "artificial intelligence tariff concerns in supply chain",
+        "topic": "Donald trump will cause world wor 3",
         "imagination_level": 2,  # Maximum imagination
         "research_level": 5,     # Maximum research
         "audience": "general",

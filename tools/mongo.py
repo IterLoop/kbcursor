@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class MongoDB:
     """MongoDB database interface."""
     
-    def __init__(self, mongo_url: str, db_name: str = "ghostwriter"):
+    def __init__(self, mongo_url: str, db_name: str = "content_data"):
         """Initialize MongoDB connection.
         
         Args:

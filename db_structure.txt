@@ -1,0 +1,488 @@
+
+=== MongoDB Database Structure ===
+
+Database: ghostwriter
+
+--- Collection: raw_content ---
+
+Total Documents: 2
+
+
+Schema:
+  _id: ObjectId
+  url: str
+  title: str
+  date_crawled: str
+  processing_status: str
+  source: str
+  text: str
+  content_hash: str
+
+Indexes:
+  _id_: SON([('_id', 1)])
+  url_1: SON([('url', 1)])
+  content_hash_1: SON([('content_hash', 1)])
+
+Sample Documents:
+{
+  "_id": "678380205069cbeb1d53fc1e",
+  "url": "https://example.com",
+  "title": "Test Article",
+  "date_crawled": "2024-01-12T00:00:00Z",
+  "processing_status": "raw",
+  "source": "web",
+  "text": "Sample text",
+  "metadata": {},
+  "content_hash": "test123"
+}
+{
+  "_id": "6783807874404a190b5d78d4",
+  "url": "https://example.com/test1",
+  "title": "Test Article 1",
+  "date_crawled": "2025-01-12T03:42:32.435464",
+  "processing_status": "raw",
+  "source": "web",
+  "text": "This is a test article content.",
+  "metadata": {
+    "author": "Test Author"
+  },
+  "content_hash": "test_hash_123"
+}
+
+--------------------------------------------------
+--- Collection: processed_content ---
+
+Total Documents: 0
+
+
+--------------------------------------------------
+--- Collection: url_tracking ---
+
+Total Documents: 0
+
+
+--------------------------------------------------
+Database: content_data
+
+--- Collection: raw_content ---
+
+Total Documents: 151
+
+
+Schema:
+  _id: ObjectId
+  url: str
+  content_hash: str
+  crawl_time: datetime
+  metadata.viewport: str
+  metadata.referrer: str
+  metadata.description: str
+  metadata.keywords: str
+  metadata.news_keywords: str
+  metadata.author: str
+  metadata.article:channel: str
+  metadata.article:section: str
+  metadata.article:section_url: str
+  metadata.article:id: str
+  metadata.article:published: str
+  metadata.article:modified: str
+  metadata.article:publisher: str
+  metadata.article:author: str
+  metadata.og:title: str
+  metadata.og:site_name: str
+  metadata.og:type: str
+  metadata.og:url: str
+  metadata.image: str
+  metadata.og:description: str
+  metadata.og:updated_time: str
+  metadata.fb:app_id: str
+  metadata.apple-itunes-app: str
+  metadata.twitter:card: str
+  metadata.twitter:site: str
+  metadata.twitter:title: str
+  metadata.twitter:description: str
+  metadata.twitter:image: str
+  metadata.robots: str
+  method: str
+  status: str
+  text: str
+  title: str
+  updated_at: datetime
+  word_count: int
+
+Indexes:
+  _id_: SON([('_id', 1)])
+  url_1: SON([('url', 1)])
+  crawl_time_1: SON([('crawl_time', 1)])
+  content_hash_1: SON([('content_hash', 1)])
+
+Sample Documents:
+{
+  "_id": "677b23649954d5b72ba9fc60",
+  "url": "https://www.forbes.com/sites/stevebanker/2024/10/07/supply-chain-ai-25-current-use-cases-and-a-handful-of-future-ones/",
+  "content_hash": "254b7d15a3854d8b8c6c710c843d7de11f1bd36bacc39e2fdc62bbcb843b6079",
+  "crawl_time": "2025-01-06 00:27:16.648000",
+  "metadata": {
+    "viewport": "width=device-width,initial-scale=1,maximum-scale=5,minimum-scale=1,user-scalable=yes",
+    "referrer": "no-referrer-when-downgrade",
+    "description": "AI is not a new technology in the supply chain realm; it has been used in some cases for decades. More recently, many other cases have emerged.",
+    "keywords": "Machine Learning,Harmonized System",
+    "news_keywords": "Machine Learning,Harmonized System",
+    "author": "Steve Banker",
+    "article:channel": "Innovation",
+    "article:section": "Transportation",
+    "article:section_url": "https://www.forbes.com/transportation/",
+    "article:id": "blogAndPostId/blog/post/2785-670458c13b4a467c9018aa6d",
+    "article:published": "2024-10-07",
+    "article:modified": "2024-10-09",
+    "article:publisher": "https://www.facebook.com/forbes",
+    "article:author": "Steve Banker",
+    "og:title": "Supply Chain AI: 25 Current Use Cases (and A Handful Of Future Ones)",
+    "og:site_name": "Forbes",
+    "og:type": "article",
+    "og:url": "https://www.forbes.com/sites/stevebanker/2024/10/07/supply-chain-ai-25-current-use-cases-and-a-handful-of-future-ones/",
+    "image": "https://imageio.forbes.com/specials-images/imageserve/6704593b31c6ab97b4e24c89/0x0.jpg?format=jpg&height=900&width=1600&fit=bounds",
+    "og:description": "AI is not a new technology in the supply chain realm; it has been used in some cases for decades. More recently, many other cases have emerged.",
+    "og:updated_time": "2024-10-09T08:32:30.341-04:00",
+    "fb:app_id": "123694841080850",
+    "apple-itunes-app": "app-id=588647136",
+    "twitter:card": "summary_large_image",
+    "twitter:site": "@forbes",
+    "twitter:title": "Supply Chain AI: 25 Current Use Cases (and A Handful Of Future Ones)",
+    "twitter:description": "AI is not a new technology in the supply chain realm; it has been used in some cases for decades. More recently, many other cases have emerged.",
+    "twitter:image": "https://imageio.forbes.com/specials-images/imageserve/6704593b31c6ab97b4e24c89/0x0.jpg?format=jpg&height=600&width=1200&fit=bounds",
+    "robots": "max-image-preview:large"
+  },
+  "method": "static",
+  "status": "success",
+  "text": "Supply Chain AI: 25 Current Use Cases (and A Handful Of Future Ones) Subscribe To Newsletters BETA THIS IS A BETA EXPERIENCE. OPT-OUT HERE More From Forbes Jan 5, 2025, 08:12am EST Europe\u2019s Automakers Face Pummeling In 2025 But Positives Remain Jan 2, 2025, 12:34pm EST Autonomy Of Things - Becoming Mainstream At A Mine Near You! Jan 2, 2025, 09:17am EST With Cruise In Rear-View Mirror, Robotaxis Power On Across The Globe Jan 2, 2025, 08:30am EST Dashcams And Smart Cars Solve The Self-Driving Mapping Problem Dec 31, 2024, 01:26pm EST Transportation Trends To Watch In 2025: Navigating The New Landscape Dec 31, 2024, 09:00am EST Food Delivery Robots Are #OpenForWork Dec 31, 2024, 07:00am EST 5 Predictions For The Auto Industry In 2025 Dec 30, 2024, 02:21pm EST Lilium\u2019s Electric Air Taxi Dreams Retake Flight\u2014Hopefully Dec 29, 2024, 05:54pm EST The Death Of A Legend: How Jimmy Carter Influenced The Auto Industry Edit Story Forbes Innovation Transportation Supply Chain AI: 25 Current Use Cases (and A Handful Of Future Ones) Steve Banker Contributor Opinions expressed by Forbes Contributors are their own. I cover logistics and supply chain management. Following Oct 7, 2024, 05:58pm EDT Updated Oct 9, 2024, 08:32am EDT Share to Facebook Share to Twitter Share to Linkedin AI in the Supply Chain getty When it came out, ChatGPT seemed like magic. It has led supply chain vendors to discuss how they currently use artificial intelligence. Further, virtually every supplier of supply chain solutions is eager to explain the ongoing investments they are making in artificial intelligence. Any device that can perceive its environment and can take actions that maximize its chance of success at some goal is engaged in some form of artificial intelligence. AI is not a new technology in the supply chain realm; it has been used in some cases for decades. More recently, many other cases have emerged. Optimization is used in supply planning, factory scheduling, supply chain design , and transportation planning . In a broad sense, optimization refers to creating plans that help companies achieve service levels and other goals at the lowest cost. In mathematical terms, optimization is a mixed-integer or linear programming approach to finding the best combination of warehouses, factories, transportation flows, and other supply chain resources under real-world constraints. Machine Learning occurs when a machine takes the output, observes its accuracy, and updates its model so that better outputs will occur . Demand planning engines have natural feedback loops that allow the forecast engine to learn. The forecast can be compared to what actually shipped or sold. Since ML began being used in demand forecasting in the early 2000s, ML has helped greatly increase the breadth and depth of forecasting. Now, ML forecasting is not just monthly or quarterly; weekly and even daily forecasting is now possible. We have moved from product-level forecasts at a regional level to stock-keeping unit forecasts made at the store level . More recently, demand planning applications based on machine learning have improved forecasting by incorporating competitor pricing data, store traffic, and weather data . MORE FROM FORBES ADVISOR Best High-Yield Savings Accounts Of 2024 By Kevin Payne Contributor Best 5% Interest Savings Accounts of 2024 By Cassidy Horton Contributor We are no longer just forecasting demand but also when trucks and factory machinery are likely to break down ( predictive maintenance ), the optimal amount of inventory to hold and where it should be held ( inventory optimization) , and labor forecasting in the warehouse . This type of forecasting can forecast the number of employees required to perform estimated work down to the day, shift, job, and zone level. ML can also be used to generate labor standards for warehouse workers . ML techniques like clustering, data similarity, and semantic tagging can automate master data management . Without accurate data, companies face the garbage in, garbage out problem. In terms of supply planning, if key parameters (like supplier lead times) are no longer correct, then the planning becomes suboptimal. ML is being used to keep key parameters and policies up to date . It is also being used to predict whether an SKU believed to be in stock at a store is actually out of stock . Supply chain risk solutions use ML and other forms of AI to predict which suppliers are included in a company\u2019s multi-tier supply chain . This is becoming increasingly necessary as customs will hold up shipments at the port if it believes the shipment contains products made with slave labor from China. This is true even if those components came from their supplier\u2019s supplier\u2019s supplier and represent a minuscule portion of the total cost of the product. Shippers' end-to-end supply chain predictions are based on applying AI to OpenWeb searches, import/export records, data from sourcing platforms like ThomasNet, federal logistics records, and other data. These predictions accelerate a company\u2019s ability to verify how its extended supply chain is constructed. Customs uses the same technology to determine which shipments should be denied entry. Natural Language Processing is used to classify commodity classification for use in imports and exports and in real-time supply chain risk solutions . The Harmonized System is a commodity classification coding taxonomy that forms the basis upon which all goods are identified for customs. It is used by customs authorities worldwide. Using the right product classification allows companies to pay the correct tariffs. Paying the right tariffs is necessary to avoid government fines and calculate the true landed cost of products. The problem is that there is an incredible gap between how products are described commercially and how they are expressed in the national customs tariff schedules. This has resulted in error rates as high as 30%. The combination of natural language processing and expert systems has been used to automate and significantly improve the classification process. Real-time risk solutions also use natural language processing to read online publications and other data sources, make sense of what they read, contextualize the data into information, and report supply chain disruptions caused by weather, geopolitical events, and other hazards in near real-time. Every step in that value chain has search terms associated with it. The names of the suppliers, carriers, logistics service providers become search terms. Those search terms are paired with terms signaling a problem \u2013 those terms might be \u201cbankruptcy,\u201d \u201cplant fire,\u201d \u201cport explosion,\u201d \u201cstrike\u201d, and many, many other terms. So, the term \u201cHaiphong\u201d when combined in an article with the phrase \u201cport fire\u201d would generate an alert. Reinforcement Learning is a form of machine learning that lets AI models refine their decision-making process based on positive, neutral, and negative feedback. For example, if you want to train a vision system to recognize a dog's image, you will start by using humans to look at tens of thousands of images of animals. The humans label the pictures as dog, not dog, or unclear. The computer is then presented with those images. The system would say, \u201cthis is a dog\u201d or \u201cthis is not a dog\u201d and it learns whether its conclusion was correct. Drones use this form of AI to improve inventory accuracy in a warehouse . Reinforcement learning allows the drone to recognize warehouse racks, pallets, and cases and get close enough to inventory to scan the barcodes. Similarly, reinforcement learning has been applied to security camera footage in the warehouse to ensure workers are following standard operating procedures . Simultaneous localization and mapping (SLAM) allows a vehicle to construct and update a map of an unknown environment while simultaneously keeping track of the vehicle\u2019s location within it. This technology allows mobile robots to move autonomously through a warehouse. Drones and autonomous mobile robots using SLAM are in an early adoption stage for last-mile deliveries . Autonomous trucks a lso use SLAM . These trucks when feasible, will revolutionize logistics. But we are probably just a couple of years out from being able to transport goods from a distribution center to a retail facility autonomously. Check out my website . Steve Banker Following Editorial Standards Forbes Accolades Join The Conversation Comments One Community. Many Voices.\u00a0Create a free account to share your thoughts. Read our community guidelines here . Forbes Community Guidelines Our community is about connecting people through open and thoughtful conversations. We want our readers to share their views and exchange ideas and facts in a safe space. In order to do so, please follow the posting rules in our site's Terms of Service. We've summarized some of those key rules below. Simply put, keep it civil. Your post will be rejected if we notice that it seems to contain: False or intentionally out-of-context or misleading information Spam Insults, profanity, incoherent, obscene or inflammatory language or threats of any kind Attacks on the identity of other commenters or the article's author Content that otherwise violates our site's terms. User accounts will be blocked if we notice or believe that users are engaged in: Continuous attempts to re-post comments that have been previously moderated/rejected Racist, sexist, homophobic or other discriminatory comments Attempts or tactics that put the site security at risk Actions that otherwise violate our site's terms. So, how can you be a power user? Stay on topic and share your insights Feel free to be clear and thoughtful to get your point across \u2018Like\u2019 or \u2018Dislike\u2019 to show your point of view. Protect your community. Use the report tool to alert us when someone breaks the rules. Thanks for reading our community guidelines.  Please read the full list of posting rules found in our site's Terms of Service.",
+  "title": "Supply Chain AI: 25 Current Use Cases (and A Handful Of Future Ones)",
+  "updated_at": "2025-01-06 00:27:16.662000",
+  "word_count": 1600
+}
+{
+  "_id": "677b23729954d5b72ba9fc61",
+  "url": "https://www.sdcexec.com/software-technology/ai-ar/article/22929091/o9-solutions-3-ways-ai-can-strengthen-supply-chains-in-2025",
+  "content_hash": "7dfb1ac7bad2b44068759c839f43c2eddd78ab6862f1e5bc8b567a0411fbafc2",
+  "crawl_time": "2025-01-06 00:27:30.631000",
+  "metadata": {
+    "viewport": "width=device-width, initial-scale=1, shrink-to-fit=no",
+    "description": "As we head into 2025, companies are likely to leverage AI technologies to help transition back towards their pre-pandemic operating levels and focus on building greater agility and flexibility into their supply chains.",
+    "og:title": "3 Ways AI Can Strengthen Supply Chains in 2025",
+    "image": "https://img.sdcexec.com/files/base/acbm/scn/image/2024/12/AdobeStock_275319226.6762f5cf1bb37.png?auto=format%2Ccompress&fit=max&q=70&w=1200",
+    "og:url": "https://www.sdcexec.com/software-technology/ai-ar/article/22929091/o9-solutions-3-ways-ai-can-strengthen-supply-chains-in-2025",
+    "og:site_name": "Supply & Demand Chain Executive",
+    "og:locale": "en",
+    "twitter:card": "summary_large_image",
+    "twitter:title": "3 Ways AI Can Strengthen Supply Chains in 2025",
+    "twitter:description": "As we head into 2025, companies are likely to leverage AI technologies to help transition back towards their pre-pandemic operating levels and focus on building greater agility and flexibility into their supply chains.",
+    "twitter:image": "https://img.sdcexec.com/files/base/acbm/scn/image/2024/12/AdobeStock_275319226.6762f5cf1bb37.png?auto=format%2Ccompress&fit=max&q=70&w=1200",
+    "og:type": "article",
+    "article:published_time": "January 3, 2025",
+    "article:modified_time": "December 18, 2024"
+  },
+  "method": "static",
+  "status": "success",
+  "text": "3 Ways AI Can Strengthen Supply Chains in 2025 | Supply & Demand Chain Executive Warehousing Transportation Software & Tech Safety Sustainability Procurement Prof Dev WISC Forum Newsletter Search Software Solutions Robotics Automation WMS/TMS AI/AR E-Commerce Solutions Emerging Technologies Supply Chain Visibility Topics Warehousing Transportation Software & Tech Safety Sustainability Procurement Prof Dev Electrification Reverse Logistics Alexis Asks WISC Forum Resources Magazines Awards Case Studies MODEX Events Webinars Supply Chain Learning Center Podcasts Premium Content Videos Expert Columnists Multimedia SCN Summit 20 Year Anniversary Coverage User Tools Newsletters Advertise Contact Us Privacy Policy Terms & Conditions Facebook icon Twitter X icon LinkedIn icon Flipboard icon YouTube icon Home Software & Technology AI/AR 3 Ways AI Can Strengthen Supply Chains in 2025 As we head into 2025, companies are likely to leverage AI technologies to help transition back towards their pre-pandemic operating levels and focus on building greater agility and flexibility into their supply chains. January 3, 2025 Brent Hasenkamp o9 Solutions issaronow/stock.adobe.com Over the past five years, businesses  across the manufacturing industry have dealt with numerous supply chain  disruptions that have impacted their ability to maintain customer service  levels, optimize working capital and have led to significant reactionary COGS  through expedited freight, purchase orders and overtime. The dynamics have  forced many to rethink their pre-pandemic inventory and supply chain planning  strategies. Additionally, the increasing number of supply chain events has  created an environment where companies responded by increasing inventory levels  as a buffer to hedge against the effects of supply chain disruptions but led to  vulnerability to excess and obsolete inventory as demand patterns have also  been changing with increased frequency. Companies have turned to AI-enabled  platforms to help navigate a business and economic environment marked by  volatility, uncertainty, ambiguity, and complexity (VUCA). As we head into  2025, companies are likely to leverage AI technologies to help transition back  towards their pre-pandemic operating levels and focus on building greater  agility and flexibility into their supply chains. Here are three potential use  cases for using AI to hedge against uncertainty in the coming year. Enhanced Scenario Planning Capabilities More organizations are using AI technology to inform their short-term, mid-term  and long-term supply chain planning capabilities, however, many are still  somewhat rudimentary in how they execute their day-to-day tasks. In order to  quickly identify and respond proactively to potential supply chain disruptions  in 2025, companies need to fully optimize their scenario planning capabilities  and should consider integrating their spreadsheet data into their planning  platform. AI-enabled planning platforms are able to  collect a company\u2019s historical data and other relevant internal and external  data points, then provide structured insights and map out actions that can  inform real-time planning decisions. Advanced planning capabilities like  control towers or digital twins enable planning teams to simulate potential  outcomes, compare financial implications, etc., and present actionable  recommendations to stakeholders and leadership when necessary. As GenAI  continues to be applied in planning practices, companies will be able to ask  specific queries, and the platform will be able to gather data insights to help  identify potential trends, challenges, and opportunities during the scenario  planning process. For example, a use case that is emerging is companies  leveraging AI to identify trends, such as over-forecasting by customers or  underperformance in suppliers, allowing companies to address and correct the  issue. While we can\u2019t determine all of the factors that could influence potential  supply chain disruptions in the coming year, companies that are able to utilize  AI platforms that enable early disruption detection and enact data-driven  planning strategies and proactive decision-making will be better positioned to  strengthen their supply chain. Touchless  Planning The future of planning is powered by  advanced AI engines, reducing manual intervention, and boosting efficiency with  Touchless Planning. But, without trust, planners spend too much time touching  system outputs and end up making the wrong decisions. It\u2019s critical to ensure  the following components are in place to drive effective touchless planning  including: High-fidelity Input Data: Planning systems require complete, rich, and accurate data as input, both       historical and future oriented. Right       Granularity: Data must offer precise       information across various dimensions (e.g., time, market, product and\u00a0product life cycle) Advanced AI       Engine: AI algorithms must be able to       handle complex data sets, identify patterns, deal with outliers, and learn       over time to improve accuracy. High-accuracy       Results: The output should be accurate,       unbiased, reliable (avoids big outliers), and stable (low variations from       one forecast to the next). Explainable       Forecast: Explainability refers to a       system\u2019s ability to offer clear and understandable justifications for how       it reached a particular decision. Feedback Mechanisms: Systems need       to provide helpful feedback with detailed insights into how adjustments       affect forecasting accuracy and forecast value add. Organizations are increasingly looking to  automate activities across demand and supply planning and enabling these  capabilities provide critical, differentiated capabilities for manufacturing  organizations. Closing  the Skills Gap Another area where AI applications can be applied is supply chain talent and  skills development. A critical challenge is addressing the supply chain  planning skills gap and also aligning skilled talent with new technologies.  Incoming talent may need to strengthen their on-the-job planning skill sets,  and existing personnel may need to adapt to newer ways of working and acquire  new skills related to AI and other emerging technologies. However, many  companies still operate with outdated systems, so it is also necessary for  companies to adopt advanced technologies to strengthen their supply chain  management capabilities to tackle future challenges and disruptions that could  impact their business. Another area where AI-enabled platforms can help bridge  the skills gap between incoming talent and employees who will be retiring in  the near future is by enabling the digitization of tribal information so that  newer employees can be \u201ctrained\u201d based on the internal knowledge of more  experienced employees. For example, if a newer planner experiences a disruption  that is similar to a situation that more experienced planners had experienced  previously, the platform has this data built into its recommended insights and  a newer planner is able to use this information to guide their decision-making.  Organizations that make investments to integrate digital tools and technologies  to operate more efficiently and strengthen their supply chains against  disruptions will build a greater competitive advantage going forward. While we can\u2019t predict what supply chain  disruptions may crop up in the coming year, AI-enabled platforms and  technologies allow companies to identify potential risks impacting their supply  chain, bolster the skillset of their workforce, and find opportunities to  collaborate and strengthen relationships with their suppliers, all of which can  lead to greater supply chain resiliency. Latest in AI/AR Sponsored Gear Up for Peak Season with Automated Container Unloading December 27, 2024 boon January 2, 2025 Transforming Risk into Resilience in Supply Chains January 1, 2025 Bridging the Gap Between C-Suite and Supply Chain Leaders to Drive Innovation December 27, 2024 Recommended Supply Chain Visibility Post-Election Outlook for Supply Chain Supply chain experts are contemplating what it means to have the Trump administration come on board in 2025 and how it will shape the supply chain outlook. Carol Brzozowski December 27, 2024 Regulations U.S. Tariffs Pose Potential for Global Supply Chain Implications: Alexis Asks Tariffs are kind of like a double-edged sword: while they can protect domestic industries, they also pose significant challenges for global supply chains. Software AG USA Inc. December 20, 2024 Sponsored Gear Up for Peak Season with Automated Container Unloading Join experts in this webinar to explore how automated unloading is improving operational efficiency and supporting associates as warehouses, striving to meet peak season demands, increasingly turn to robotics to fortify their processes. December 27, 2024 Latest Hiring Corvus Robotics Names Rob Stevens to Board of Directors Personnel updates sees new appointments and promotions at Norfolk Southern and more. Alexis Mizell-Pleasant December 19, 2024 Emerging Technologies Supply Chain Technology in 2025: Advancements, Benefits and Challenges Ahead In 2025, organizations that embrace these advancements while safeguarding their networks will lead the way towards supply chain excellence. Alexis Mizell-Pleasant December 19, 2024 AI/AR Fabric AI Order Cloud Built to Orchestrate the Order Journey Fabric announces a reimagined order management system (OMS) enhanced by the transformative power of artificial intelligence (AI), including a new AI agent. fabric December 18, 2024 Software Solutions Top Tech Startup Award: AI-Powered Startups Address Today's Supply Chain Challenges Many of today's AI-powered startups address these challenges with dashboards, cloud-based solutions, data analytics, optimized offerings, real-time visibility, procurement systems and more. Marina Mayer December 16, 2024 AI/AR Embracing an AI-Enabled Holiday Season to Navigate E-Commerce Complexities The holiday season is an opportunity for businesses to shine, and with the right AI-driven tools in place, they can turn this season\u2019s challenges into success stories during a historical first: a holiday seasoned backed by AI. Katana December 17, 2024 Sponsored Gear Up for Peak Season with Automated Container Unloading Join experts in this webinar to explore how automated unloading is improving operational efficiency and supporting associates as warehouses, striving to meet peak season demands, increasingly turn to robotics to fortify their processes. December 27, 2024 Supply Chain Visibility New Ransomware Strain Drives Rising Attack Levels Global levels of ransomware attacks again increased both month on month and year on year, according to NCC Group's November Threat Pulse. NCC Group December 12, 2024 AI/AR AI-Driven Social Engineering to be More Sophisticated Come 2025: Cybersecurity Experts Warn One closely followed topic focuses directly on account takeovers that exploit metadata for unauthorized access, according to analysis provided by NordVPN and NordStellar. NordVPN December 12, 2024 Retention Wonolo Launches AI-Powered Job Management Solution Wonolo unveils its AI-powered, end-to-end job management solution. This platform streamlines job posting, improves job matching with real-time insights and enhances transparency for Wonolo workers. Wonolo December 11, 2024 Emerging Technologies Digital Transformation Brings Industry 4.0 Within Reach: Study Close to 76% of manufacturers across North America and Europe have at least started implementing digital strategies and just over one-quarter (26%) say they have completed their digital transformation initiatives. Parsec Automation Corp. December 10, 2024 Hiring Cleo Finds Only a Fraction of Supply Chain Jobs Seek AI Knowledge Cleo announces findings from its second Supply Chain Jobs Report, that highlights a significant discrepancy between business goals and the software and technology needed to accomplish them. Cleo December 10, 2024 Software Solutions Top Software & Tech Award: Supply Chain Visibility Solutions Reign as Industry Problem Solvers Automation, sustainability, smart technology, supply chain optimization and risk management were the major themes of this year\u2019s Top Software & Tech award. Let's meet the winners. Marina Mayer December 9, 2024 Risk/Compliance Another Day, Another Disruption: How AI Can Help Continued advancements in AI and new use cases throughout the supply chain show huge promise, particularly against the backdrop of uncertainty that continues to pervade the global economy. Qlik December 7, 2024 Emerging Technologies 4 Ways to Improve Supply Chain and C-Suite Collaboration When collaboration is in place and accountability is shared across the organization, the supply chain will be valued as the growth driver it is and regain its seat at the table. EY (Ernst & Young) December 6, 2024 Software Solutions Demand Chain AI Acquires Replan, Strengthens End-to-End Supply Chain Planning Demand Chain AI Inc. acquired Replan, a provider of software solutions for supply planning and production scheduling, from Coolgarif Technologies Ltd. Demand Chain AI Inc. December 5, 2024 Software Solutions Logility Creates AI-First Solutions for Enhanced Supply Chain Execution Logility announced two artificial intelligence (AI)-native capabilities designed to reimagine supply chain execution. Logility December 5, 2024 Software Solutions Log-hub Releases New Demand Forecasting App By leveraging advanced time series modeling and AI-driven algorithms, the app provides dynamic and highly accurate demand forecasts tailored to the complexities of real-world markets. Log-hub December 5, 2024 Hiring Seagull Software Appoints Jeffrey Hart as Chief Executive Officer Personnel updates sees new appointments and promotions at Saddle Creek, Flux Power and more. Alexis Mizell-Pleasant December 5, 2024 Risk/Compliance Gartner Says Common Supply Chain Reorganization Approaches Will Fail to Deliver Many supply chain reorganizations suffer from at least one of three critical organizational design mistakes that can derail their efforts to achieve critical business outcomes, according to Gartner, Inc. Gartner Inc. December 4, 2024 Emerging Technologies How to Create a Datafied Culture The journey to a data-driven culture is continuous, but the benefits are worth the effort \u2014 leading to a more informed, agile and successful organization. The Raymond Corporation December 3, 2024 Emerging Technologies Samsara Intelligence to Solve Operational Challenges Samsara Intelligence is an expanded suite of AI offerings designed to help customers make smarter decisions and run safer, more efficient operations. Samsara December 3, 2024 AI/AR MaterialsZone Launches Fully Integrated, AI-Guided Product Development Feature MaterialsZone announces the launch of its AI-Guided Product Development feature, providing MaterialsZone users with direct access to AI-generated experiment suggestions to streamline development cycles within their existing workflow. MaterialsZone December 2, 2024 AI/AR Why AI is Key to Building Resilient Supply Chains in a Polycrisis World AI isn\u2019t just the future of supply chains; it\u2019s the present. Companies that embrace these technologies now will lead their industries forward, while those that hesitate risk being left behind. Pecan AI November 30, 2024 Sponsored Gear Up for Peak Season with Automated Container Unloading Join experts in this webinar to explore how automated unloading is improving operational efficiency and supporting associates as warehouses, striving to meet peak season demands, increasingly turn to robotics to fortify their processes. December 27, 2024 Follow Us Facebook icon Twitter X icon LinkedIn icon Flipboard icon YouTube icon Facebook icon Twitter X icon LinkedIn icon Flipboard icon YouTube icon Contact Us Advertise Privacy Policy Terms & Conditions \u00a9 2025 IRONMARKETS, LLC. All rights reserved.",
+  "title": "3 Ways AI Can Strengthen Supply Chains in 2025 | Supply & Demand Chain Executive",
+  "updated_at": "2025-01-06 00:27:30.639000",
+  "word_count": 2267
+}
+
+--------------------------------------------------
+--- Collection: processed_content ---
+
+Total Documents: 50
+
+
+Schema:
+  _id: ObjectId
+  url: str
+  title: str
+  subtitle: NoneType
+  author: str
+  published_date: str
+  key_points: list
+  key_statistics: list
+  notable_quotes: list
+  source: str
+  category_tags: list
+  body_text: str
+  process_time: float
+  content_type: str
+  meta_tags.title: str
+  meta_tags.description: str
+  metadata.viewport: str
+  metadata.referrer: str
+  metadata.description: str
+  metadata.keywords: str
+  metadata.news_keywords: str
+  metadata.author: str
+  metadata.article:channel: str
+  metadata.article:section: str
+  metadata.article:section_url: str
+  metadata.article:id: str
+  metadata.article:published: str
+  metadata.article:modified: str
+  metadata.article:publisher: str
+  metadata.article:author: str
+  metadata.og:title: str
+  metadata.og:site_name: str
+  metadata.og:type: str
+  metadata.og:url: str
+  metadata.image: str
+  metadata.og:description: str
+  metadata.og:updated_time: str
+  metadata.fb:app_id: str
+  metadata.apple-itunes-app: str
+  metadata.twitter:card: str
+  metadata.twitter:site: str
+  metadata.twitter:title: str
+  metadata.twitter:description: str
+  metadata.twitter:image: str
+  metadata.robots: str
+
+Indexes:
+  _id_: SON([('_id', 1)])
+  process_time_1: SON([('process_time', 1)])
+  content_type_1: SON([('content_type', 1)])
+
+Sample Documents:
+{
+  "_id": "677b2371b424d06303bc4930",
+  "url": "https://www.forbes.com/sites/stevebanker/2024/10/07/supply-chain-ai-25-current-use-cases-and-a-handful-of-future-ones/",
+  "title": "Supply Chain AI: 25 Current Use Cases (and A Handful Of Future Ones)",
+  "subtitle": null,
+  "author": "Steve Banker",
+  "published_date": "Oct 7, 2024",
+  "key_points": [
+    "AI has been used in the supply chain realm for decades, with recent advancements in optimization, machine learning, and demand planning.",
+    "Machine learning has greatly improved forecasting accuracy, enabling daily and even hourly forecasts.",
+    "ML techniques are enhancing labor forecasting, inventory optimization, and supply chain risk management.",
+    "Natural Language Processing is utilized for commodity classification, real-time risk solutions, and supply chain disruption monitoring.",
+    "Reinforcement Learning is applied in drones for warehouse inventory accuracy and security monitoring.",
+    "Simultaneous localization and mapping (SLAM) technology is enabling autonomous movement in warehouses and last-mile deliveries."
+  ],
+  "key_statistics": [
+    "ML adoption has led to a 30% reduction in error rates in commodity classification.",
+    "AI-driven demand planning has enabled weekly and daily forecasting, improving accuracy and responsiveness.",
+    "ML in supply planning has optimized key parameters and policies, ensuring better decision-making.",
+    "Supply chain risk solutions using AI have enhanced predictive capabilities for multi-tier supply chain disruptions.",
+    "Natural Language Processing has improved tariff classification accuracy, reducing the risk of fines and errors."
+  ],
+  "notable_quotes": [
+    "AI is not a new technology in the supply chain realm; it has been used in some cases for decades.",
+    "ML forecasting is not just monthly or quarterly; weekly and even daily forecasting is now possible.",
+    "ML techniques like clustering, data similarity, and semantic tagging can automate master data management.",
+    "Natural Language Processing is used to classify commodity classification for use in imports and exports.",
+    "Reinforcement Learning allows AI models to refine decision-making based on feedback."
+  ],
+  "source": "Forbes",
+  "category_tags": [
+    "Innovation",
+    "Transportation",
+    "Supply Chain",
+    "AI"
+  ],
+  "body_text": "START OF BODY TEXT AI in the Supply Chain getty When it came out, ChatGPT seemed like magic... [Truncated for brevity]",
+  "additional_fields": {},
+  "process_time": 1736123249.8009233,
+  "content_type": "article",
+  "meta_tags": {
+    "title": "Supply Chain AI: 25 Current Use Cases (and A Handful Of ...",
+    "description": "Optimization is used in supply planning, factory scheduling, supply chain design, and transportation planning. \u00b7 Machine Learning \u00b7 Natural\u00a0..."
+  },
+  "metadata": {
+    "viewport": "width=device-width,initial-scale=1,maximum-scale=5,minimum-scale=1,user-scalable=yes",
+    "referrer": "no-referrer-when-downgrade",
+    "description": "AI is not a new technology in the supply chain realm; it has been used in some cases for decades. More recently, many other cases have emerged.",
+    "keywords": "Machine Learning,Harmonized System",
+    "news_keywords": "Machine Learning,Harmonized System",
+    "author": "Steve Banker",
+    "article:channel": "Innovation",
+    "article:section": "Transportation",
+    "article:section_url": "https://www.forbes.com/transportation/",
+    "article:id": "blogAndPostId/blog/post/2785-670458c13b4a467c9018aa6d",
+    "article:published": "2024-10-07",
+    "article:modified": "2024-10-09",
+    "article:publisher": "https://www.facebook.com/forbes",
+    "article:author": "Steve Banker",
+    "og:title": "Supply Chain AI: 25 Current Use Cases (and A Handful Of Future Ones)",
+    "og:site_name": "Forbes",
+    "og:type": "article",
+    "og:url": "https://www.forbes.com/sites/stevebanker/2024/10/07/supply-chain-ai-25-current-use-cases-and-a-handful-of-future-ones/",
+    "image": "https://imageio.forbes.com/specials-images/imageserve/6704593b31c6ab97b4e24c89/0x0.jpg?format=jpg&height=900&width=1600&fit=bounds",
+    "og:description": "AI is not a new technology in the supply chain realm; it has been used in some cases for decades. More recently, many other cases have emerged.",
+    "og:updated_time": "2024-10-09T08:32:30.341-04:00",
+    "fb:app_id": "123694841080850",
+    "apple-itunes-app": "app-id=588647136",
+    "twitter:card": "summary_large_image",
+    "twitter:site": "@forbes",
+    "twitter:title": "Supply Chain AI: 25 Current Use Cases (and A Handful Of Future Ones)",
+    "twitter:description": "AI is not a new technology in the supply chain realm; it has been used in some cases for decades. More recently, many other cases have emerged.",
+    "twitter:image": "https://imageio.forbes.com/specials-images/imageserve/6704593b31c6ab97b4e24c89/0x0.jpg?format=jpg&height=600&width=1200&fit=bounds",
+    "robots": "max-image-preview:large"
+  }
+}
+{
+  "_id": "677b239eb424d06303bc4932",
+  "url": "https://www.sdcexec.com/software-technology/ai-ar/article/22929091/o9-solutions-3-ways-ai-can-strengthen-supply-chains-in-2025",
+  "title": "3 Ways AI Can Strengthen Supply Chains in 2025",
+  "subtitle": null,
+  "author": "Brent Hasenkamp",
+  "published_date": "January 3, 2025",
+  "key_points": [
+    "Companies are leveraging AI to transition back to pre-pandemic operating levels and enhance supply chain agility.",
+    "AI technologies provide early disruption detection, data-driven planning strategies, and proactive decision-making.",
+    "AI-enabled platforms help in scenario planning, touchless planning, and closing the skills gap in supply chain talent."
+  ],
+  "key_statistics": [
+    "Businesses across manufacturing have faced supply chain disruptions leading to reactionary costs.",
+    "AI adoption helps in navigating a volatile business environment marked by VUCA.",
+    "AI platforms enable companies to identify trends, address over-forecasting, and improve planning capabilities."
+  ],
+  "notable_quotes": [
+    "Organizations that invest in digital tools and technologies to strengthen their supply chains will build a greater competitive advantage.",
+    "The future of planning is powered by advanced AI engines, reducing manual intervention and boosting efficiency with Touchless Planning.",
+    "Organizations that invest in digital tools and technologies to strengthen their supply chains will build a competitive advantage.",
+    "Companies are leveraging AI to navigate a business environment marked by volatility, uncertainty, ambiguity, and complexity (VUCA)."
+  ],
+  "source": "Supply & Demand Chain Executive",
+  "category_tags": [
+    "Warehousing",
+    "Sustainability",
+    "Software & Tech",
+    "Prof Dev",
+    "Procurement",
+    "Safety",
+    "Transportation"
+  ],
+  "body_text": "START OF BODY TEXT As we head into 2025, companies are likely to leverage AI technologies to help transition back towards their pre-pandemic operating levels and focus on building greater agility and flexibility into their supply chains. Over the past five years, businesses across the manufacturing industry have dealt with numerous supply chain disruptions that have impacted their ability to maintain customer service levels, optimize working capital and have led to significant reactionary COGS through expedited freight, purchase orders and overtime. The dynamics have forced many to rethink their pre-pandemic inventory and supply chain planning strategies. Additionally, the increasing number of supply chain events has created an environment where companies responded by increasing inventory levels as a buffer to hedge against the effects of supply chain disruptions but led to vulnerability to excess and obsolete inventory as demand patterns have also been changing with increased frequency. Companies have turned to AI-enabled platforms to help navigate a business and economic environment marked by volatility, uncertainty, ambiguity, and complexity (VUCA). As we head into 2025, companies are likely to leverage AI technologies to help transition back towards their pre-pandemic operating levels and focus on building greater agility and flexibility into their supply chains. Here are three potential use cases for using AI to hedge against uncertainty in the coming year. Enhanced Scenario Planning Capabilities More organizations are using AI technology to inform their short-term, mid-term and long-term supply chain planning capabilities, however, many are still somewhat rudimentary in how they execute their day-to-day tasks. In order to quickly identify and respond proactively to potential supply chain disruptions in 2025, companies need to fully optimize their scenario planning capabilities and should consider integrating their spreadsheet data into their planning platform. AI-enabled planning platforms are able to collect a company\u2019s historical data and other relevant internal and external data points, then provide structured insights and map out actions that can inform real-time planning decisions. Advanced planning capabilities like control towers or digital twins enable planning teams to simulate potential outcomes, compare financial implications, etc., and present actionable recommendations to stakeholders and leadership when necessary. As GenAI continues to be applied in planning practices, companies will be able to ask specific queries, and the platform will be able to gather data insights to help identify potential trends, challenges, and opportunities during the scenario planning process. For example, a use case that is emerging is companies leveraging AI to identify trends, such as over-forecasting by customers or underperformance in suppliers, allowing companies to address and correct the issue. While we can\u2019t determine all of the factors that could influence potential supply chain disruptions in the coming year, companies that are able to utilize AI platforms that enable early disruption detection and enact data-driven planning strategies and proactive decision-making will be better positioned to strengthen their supply chain. Touchless Planning The future of planning is powered by advanced AI engines, reducing manual intervention, and boosting efficiency with Touchless Planning. But, without trust, planners spend too much time touching system outputs and end up making the wrong decisions. It\u2019s critical to ensure the following components are in place to drive effective touchless planning including: High-fidelity Input Data: Planning systems require complete, rich, and accurate data as input, both historical and future oriented. Right Granularity: Data must offer precise information across various dimensions (e.g., time, market, product and product life cycle) Advanced AI Engine: AI algorithms must be able to handle complex data sets, identify patterns, deal with outliers, and learn over time to improve accuracy. High-accuracy Results: The output should be accurate, unbiased, reliable (avoids big outliers), and stable (low variations from one forecast to the next). Explainable Forecast: Explainability refers to a system\u2019s ability to offer clear and understandable justifications for how it reached a particular decision. Feedback Mechanisms: Systems need to provide helpful feedback with detailed insights into how adjustments affect forecasting accuracy and forecast value add. Organizations are increasingly looking to automate activities across demand and supply planning and enabling these capabilities provide critical, differentiated capabilities for manufacturing organizations. Closing the Skills Gap Another area where AI applications can be applied is supply chain talent and skills development. A critical challenge is addressing the supply chain planning skills gap and also aligning skilled talent with new technologies. Incoming talent may need to strengthen their on-the-job planning skill sets, and existing personnel may need to adapt to newer ways of working and acquire new skills related to AI and other emerging technologies. However, many companies still operate with outdated systems, so it is also necessary for companies to adopt advanced technologies to strengthen their supply chain management capabilities to tackle future challenges and disruptions that could impact their business. Another area where AI-enabled platforms can help bridge the skills gap between incoming talent and employees who will be retiring in the near future is by enabling the digitization of tribal information so that newer employees can be \u201ctrained\u201d based on the internal knowledge of more experienced employees. For example, if a newer planner experiences a disruption that is similar to a situation that more experienced planners had experienced previously, the platform has this data built into its recommended insights and a newer planner is able to use this information to guide their decision-making. Organizations that make investments to integrate digital tools and technologies to operate more efficiently and strengthen their supply chains against disruptions will build a greater competitive advantage going forward. While we can\u2019t predict what supply chain disruptions may crop up in the coming year, AI-enabled platforms and technologies allow companies to identify potential risks impacting their supply chain, bolster the skillset of their workforce, and find opportunities to collaborate and strengthen relationships with their suppliers, all of which can lead to greater supply chain resiliency. END OF BODY TEXT START OF BODY TEXT As we head into 2025, companies are likely to leverage AI technologies to help transition back towards their pre-pandemic operating levels and focus on building greater agility and flexibility into their supply chains. Over the past five years, businesses across the manufacturing industry have dealt with numerous supply chain disruptions that have impacted their ability to maintain customer service levels, optimize working capital and have led to significant reactionary COGS through expedited freight, purchase orders and overtime. The dynamics have forced many to rethink their pre-pandemic inventory and supply chain planning strategies. Additionally, the increasing number of supply chain events has created an environment where companies responded by increasing inventory levels as a buffer to hedge against the effects of supply chain disruptions but led to vulnerability to excess and obsolete inventory as demand patterns have also been changing with increased frequency. Companies have turned to AI-enabled platforms to help navigate a business and economic environment marked by volatility, uncertainty, ambiguity, and complexity (VUCA). As we head into 2025, companies are likely to leverage AI technologies to help transition back towards their pre-pandemic operating levels and focus on building greater agility and flexibility into their supply chains. Here are three potential use cases for using AI to hedge against uncertainty in the coming year. Enhanced Scenario Planning Capabilities More organizations are using AI technology to inform their short-term, mid-term and long-term supply chain planning capabilities, however, many are still somewhat rudimentary in how they execute their day-to-day tasks. In order to quickly identify and respond proactively to potential supply chain disruptions in 2025, companies need to fully optimize their scenario planning capabilities and should consider integrating their spreadsheet data into their planning platform. AI-enabled planning platforms are able to collect a company\u2019s historical data and other relevant internal and external data points, then provide structured insights and map out actions that can inform real-time planning decisions. Advanced planning capabilities like control towers or digital twins enable planning teams to simulate potential outcomes, compare financial implications, etc., and present actionable recommendations to stakeholders and leadership when necessary. As GenAI continues to be applied in planning practices, companies will be able to ask specific queries, and the platform will be able to gather data insights to help identify potential trends, challenges, and opportunities during the scenario planning process. For example, a use case that is emerging is companies leveraging AI to identify trends, such as over-forecasting by customers or underperformance in suppliers, allowing companies to address and correct the issue. While we can\u2019t determine all of the factors that could influence potential supply chain disruptions in the coming year, companies that are able to utilize AI platforms that enable early disruption detection and enact data-driven planning strategies and proactive decision-making will be better positioned to strengthen their supply chain. Touchless Planning The future of planning is powered by advanced AI engines, reducing manual intervention, and boosting efficiency with Touchless Planning. But, without trust, planners spend too much time touching system outputs and end up making the wrong decisions. It\u2019s critical to ensure the following components are in place to drive effective touchless planning including: High-fidelity Input Data: Planning systems require complete, rich, and accurate data as input, both historical and future oriented. Right Granularity: Data must offer precise information across various dimensions (e.g., time, market, product and product life cycle) Advanced AI Engine: AI algorithms must be able to handle complex data sets, identify patterns, deal with outliers, and learn over time to improve accuracy. High-accuracy Results: The output should be accurate, unbiased, reliable (avoids big outliers), and stable (low variations from one forecast to the next). Explainable Forecast: Explainability refers to a system\u2019s ability to offer clear and understandable justifications for how it reached a particular decision. Feedback Mechanisms: Systems need to provide helpful feedback with detailed insights into how adjustments affect forecasting accuracy and forecast value add. Organizations are increasingly looking to automate activities across demand and supply planning and enabling these capabilities provide critical, differentiated capabilities for manufacturing organizations. Closing the Skills Gap Another area where AI applications can be applied is supply chain talent and skills development. A critical challenge is addressing the supply chain planning skills gap and also aligning skilled talent with new technologies. Incoming talent may need to strengthen their on-the-job planning skill sets, and existing personnel may need to adapt to newer ways of working and acquire new skills related to AI and other emerging technologies. However, many companies still operate with outdated systems, so it is also necessary for companies to adopt advanced technologies to strengthen their supply chain management capabilities to tackle future challenges and disruptions that could impact their business. Another area where AI-enabled platforms can help bridge the skills gap between incoming talent and employees who will be retiring in the near future is by enabling the digitization of tribal information so that newer employees can be \u201ctrained\u201d based on the internal knowledge of more experienced employees. For example, if a newer planner experiences a disruption that is similar to a situation that more experienced planners had experienced previously, the platform has this data built into its recommended insights and a newer planner is able to use this information to guide their decision-making. Organizations that make investments to integrate digital tools and technologies to operate more efficiently and strengthen their supply chains against disruptions will build a greater competitive advantage going forward. While we can\u2019t predict what supply chain disruptions may crop up in the coming year, AI-enabled platforms and technologies allow companies to identify potential risks impacting their supply chain, bolster the skillset of their workforce, and find opportunities to collaborate and strengthen relationships with their suppliers, all of which can lead to greater supply chain resiliency. END OF BODY TEXT",
+  "additional_fields": {
+    "related_articles": [
+      "Gear Up for Peak Season with Automated Container Unloading",
+      "Transforming Risk into Resilience in Supply Chains",
+      "Bridging the Gap Between C-Suite and Supply Chain Leaders to Drive Innovation",
+      "Embracing an AI-Enabled Holiday Season to Navigate E-Commerce Complexities",
+      "New Ransomware Strain Drives Rising Attack Levels",
+      "AI-Driven Social Engineering to be More Sophisticated Come 2025: Cybersecurity Experts Warn",
+      "Wonolo Launches AI-Powered Job Management Solution",
+      "Digital Transformation Brings Industry 4.0 Within Reach: Study",
+      "Cleo Finds Only a Fraction of Supply Chain Jobs Seek AI Knowledge",
+      "Top Software & Tech Award: Supply Chain Visibility Solutions Reign as Industry Problem Solvers",
+      "Another Day, Another Disruption: How AI Can Help",
+      "4 Ways to Improve Supply Chain and C-Suite Collaboration",
+      "Demand Chain AI Acquires Replan, Strengthens End-to-End Supply Chain Planning",
+      "Logility Creates AI-First Solutions for Enhanced Supply Chain Execution",
+      "Log-hub Releases New Demand Forecasting App",
+      "Seagull Software Appoints Jeffrey Hart as Chief Executive Officer",
+      "Gartner Says Common Supply Chain Reorganization Approaches Will Fail to Deliver",
+      "How to Create a Datafied Culture",
+      "Samsara Intelligence to Solve Operational Challenges",
+      "MaterialsZone Launches Fully Integrated, AI-Guided Product Development Feature",
+      "Why AI is Key to Building Resilient Supply Chains in a Polycrisis World"
+    ]
+  },
+  "process_time": 1736123294.3375869,
+  "content_type": "article",
+  "meta_tags": {
+    "title": "3 Ways AI Can Strengthen Supply Chains in 2025",
+    "description": "Here are three potential use cases for using AI to hedge against uncertainty in the coming year."
+  },
+  "metadata": {
+    "viewport": "width=device-width, initial-scale=1, shrink-to-fit=no",
+    "description": "As we head into 2025, companies are likely to leverage AI technologies to help transition back towards their pre-pandemic operating levels and focus on building greater agility and flexibility into their supply chains.",
+    "og:title": "3 Ways AI Can Strengthen Supply Chains in 2025",
+    "image": "https://img.sdcexec.com/files/base/acbm/scn/image/2024/12/AdobeStock_275319226.6762f5cf1bb37.png?auto=format%2Ccompress&fit=max&q=70&w=1200",
+    "og:url": "https://www.sdcexec.com/software-technology/ai-ar/article/22929091/o9-solutions-3-ways-ai-can-strengthen-supply-chains-in-2025",
+    "og:site_name": "Supply & Demand Chain Executive",
+    "og:locale": "en",
+    "twitter:card": "summary_large_image",
+    "twitter:title": "3 Ways AI Can Strengthen Supply Chains in 2025",
+    "twitter:description": "As we head into 2025, companies are likely to leverage AI technologies to help transition back towards their pre-pandemic operating levels and focus on building greater agility and flexibility into their supply chains.",
+    "twitter:image": "https://img.sdcexec.com/files/base/acbm/scn/image/2024/12/AdobeStock_275319226.6762f5cf1bb37.png?auto=format%2Ccompress&fit=max&q=70&w=1200",
+    "og:type": "article",
+    "article:published_time": "January 3, 2025",
+    "article:modified_time": "December 18, 2024"
+  }
+}
+
+--------------------------------------------------
+Database: search_data
+
+--- Collection: searches ---
+
+Total Documents: 55
+
+
+Schema:
+  _id: ObjectId
+  query_term: str
+  timestamp: datetime
+  results: list
+
+Indexes:
+  _id_: SON([('_id', 1)])
+  query_term_1: SON([('query_term', 1)])
+  timestamp_1: SON([('timestamp', 1)])
+  results.url_1: SON([('results.url', 1)])
+
+Sample Documents:
+{
+  "_id": "677b22772efe1536d2fb0a43",
+  "query_term": "AI Supply chain use cases with max probability to succeed in 2025",
+  "timestamp": "2025-01-06 00:23:19.884000",
+  "results": [
+    {
+      "url": "https://www.forbes.com/sites/stevebanker/2024/10/07/supply-chain-ai-25-current-use-cases-and-a-handful-of-future-ones/",
+      "meta_tags": {
+        "title": "Supply Chain AI: 25 Current Use Cases (and A Handful Of ...",
+        "description": "Optimization is used in supply planning, factory scheduling, supply chain design, and transportation planning. \u00b7 Machine Learning \u00b7 Natural\u00a0..."
+      }
+    },
+    {
+      "url": "https://www.sdcexec.com/software-technology/ai-ar/article/22929091/o9-solutions-3-ways-ai-can-strengthen-supply-chains-in-2025",
+      "meta_tags": {
+        "title": "3 Ways AI Can Strengthen Supply Chains in 2025",
+        "description": "Here are three potential use cases for using AI to hedge against uncertainty in the coming year."
+      }
+    },
+    {
+      "url": "https://www.prewave.com/blog/supply-chain-management-trends-2025/",
+      "meta_tags": {
+        "title": "Top Supply Chain Management Trends 2025: Challenges ...",
+        "description": "Discover supply chain management trends 2025. Overcome challenges with AI, resilience strategies, and Prewave's risk management solutions."
+      }
+    }
+  ]
+}
+{
+  "_id": "677b2363b424d06303bc492d",
+  "query_term": "AI Supply chain use cases with max probability to succeed in 2025",
+  "timestamp": "2025-01-06 00:27:15.646000",
+  "results": [
+    {
+      "url": "https://www.forbes.com/sites/stevebanker/2024/10/07/supply-chain-ai-25-current-use-cases-and-a-handful-of-future-ones/",
+      "meta_tags": {
+        "title": "Supply Chain AI: 25 Current Use Cases (and A Handful Of ...",
+        "description": "Optimization is used in supply planning, factory scheduling, supply chain design, and transportation planning. \u00b7 Machine Learning \u00b7 Natural\u00a0..."
+      }
+    },
+    {
+      "url": "https://www.sdcexec.com/software-technology/ai-ar/article/22929091/o9-solutions-3-ways-ai-can-strengthen-supply-chains-in-2025",
+      "meta_tags": {
+        "title": "3 Ways AI Can Strengthen Supply Chains in 2025",
+        "description": "Here are three potential use cases for using AI to hedge against uncertainty in the coming year."
+      }
+    },
+    {
+      "url": "https://www.prewave.com/blog/supply-chain-management-trends-2025/",
+      "meta_tags": {
+        "title": "Top Supply Chain Management Trends 2025: Challenges ...",
+        "description": "Discover supply chain management trends 2025. Overcome challenges with AI, resilience strategies, and Prewave's risk management solutions."
+      }
+    }
+  ]
+}
+
+--------------------------------------------------

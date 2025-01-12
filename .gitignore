@@ -92,3 +92,4 @@ ghostwriter-ui/coverage/
 ghostwriter-ui/.DS_Store
 ghostwriter-ui/.idea/
 ghostwriter-ui/.vscode/
+node_modules

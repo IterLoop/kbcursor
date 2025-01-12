@@ -44,8 +44,10 @@ function DataExplorer() {
         ...(status && { status }),
         ...(source && { source })
       });
+      console.log('Fetching content with params:', params.toString());
       const response = await fetch(`http://localhost:8000/api/v1/data/content?${params}`);
       const data = await response.json();
+      console.log('Received data:', data);
       setContent(data);
       setTotalPages(Math.ceil(data.length / 10));
     } catch (error) {
@@ -55,8 +57,10 @@ function DataExplorer() {
 
   const fetchPipelineStatus = async () => {
     try {
+      console.log('Fetching pipeline status');
       const response = await fetch('http://localhost:8000/api/v1/data/pipeline/status');
       const data = await response.json();
+      console.log('Received pipeline status:', data);
       setPipelineTasks(data);
     } catch (error) {
       console.error('Error fetching pipeline status:', error);
@@ -67,6 +71,7 @@ function DataExplorer() {
     try {
       const response = await fetch(`http://localhost:8000/api/v1/data/content/${contentId}`);
       const data = await response.json();
+      console.log('Content detail:', data);
       setSelectedContent(data);
       setDetailOpen(true);
     } catch (error) {
@@ -86,9 +91,13 @@ function DataExplorer() {
   };
 
   useEffect(() => {
+    console.log('DataExplorer mounted or dependencies changed');
     fetchContent();
     const interval = setInterval(fetchPipelineStatus, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      console.log('Cleaning up interval');
+      clearInterval(interval);
+    };
   }, [page, status, source]);
 
   const getStatusColor = (status) => {
@@ -208,14 +217,14 @@ function DataExplorer() {
                       <TableCell>
                         <Button
                           size="small"
-                          onClick={() => handleContentClick(item.url)}
+                          onClick={() => handleContentClick(item._id)}
                         >
                           View
                         </Button>
                         <Button
                           size="small"
                           startIcon={<AutorenewIcon />}
-                          onClick={() => handleReprocess(item.url)}
+                          onClick={() => handleReprocess(item._id)}
                           disabled={item.processing_status === 'processing'}
                         >
                           Reprocess
@@ -242,58 +251,145 @@ function DataExplorer() {
       <Dialog
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
-        maxWidth="md"
+        maxWidth="lg"
         fullWidth
       >
         {selectedContent && (
           <>
-            <DialogTitle>{selectedContent.title}</DialogTitle>
+            <DialogTitle>
+              Content Details: {selectedContent.raw_content.title || 'No Title'}
+            </DialogTitle>
             <DialogContent dividers>
-              <Grid container spacing={2}>
+              <Grid container spacing={3}>
+                {/* Raw Content Section */}
                 <Grid item xs={12}>
-                  <Typography variant="subtitle1">Summary</Typography>
-                  <Typography variant="body2">{selectedContent.summary}</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle1">Full Text</Typography>
-                  <Typography variant="body2">{selectedContent.full_text}</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle1">Tags</Typography>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    {selectedContent.tags.map((tag) => (
-                      <Chip key={tag} label={tag} size="small" />
-                    ))}
-                  </Box>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle1">Classifications</Typography>
-                  <Grid container spacing={1}>
-                    {Object.entries(selectedContent.classifications).map(([key, value]) => (
-                      <Grid item xs={6} key={key}>
-                        <Paper sx={{ p: 1 }}>
-                          <Typography variant="caption" display="block">
-                            {key}
-                          </Typography>
-                          <Typography variant="body2">
-                            {typeof value === 'number' ? value.toFixed(2) : value}
+                  <Paper sx={{ p: 2, mb: 2 }}>
+                    <Typography variant="h6" gutterBottom>Raw Content</Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Typography variant="subtitle2">URL</Typography>
+                        <Typography variant="body2" sx={{ mb: 2 }}>
+                          {selectedContent.raw_content.url}
+                        </Typography>
+
+                        <Typography variant="subtitle2">Date Crawled</Typography>
+                        <Typography variant="body2" sx={{ mb: 2 }}>
+                          {new Date(selectedContent.raw_content.date_crawled).toLocaleString()}
+                        </Typography>
+
+                        <Typography variant="subtitle2">Source</Typography>
+                        <Typography variant="body2" sx={{ mb: 2 }}>
+                          {selectedContent.raw_content.source}
+                        </Typography>
+
+                        <Typography variant="subtitle2">Content Hash</Typography>
+                        <Typography variant="body2" sx={{ mb: 2 }}>
+                          {selectedContent.raw_content.content_hash || 'Not available'}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Typography variant="subtitle2">Raw Text</Typography>
+                        <Paper 
+                          variant="outlined" 
+                          sx={{ p: 2, maxHeight: 200, overflow: 'auto' }}
+                        >
+                          <Typography variant="body2" component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
+                            {selectedContent.raw_content.text || 'No text available'}
                           </Typography>
                         </Paper>
                       </Grid>
-                    ))}
-                  </Grid>
+                      {selectedContent.raw_content.metadata && (
+                        <Grid item xs={12}>
+                          <Typography variant="subtitle2">Metadata</Typography>
+                          <Paper 
+                            variant="outlined" 
+                            sx={{ p: 2, maxHeight: 200, overflow: 'auto' }}
+                          >
+                            <Typography variant="body2" component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
+                              {JSON.stringify(selectedContent.raw_content.metadata, null, 2)}
+                            </Typography>
+                          </Paper>
+                        </Grid>
+                      )}
+                    </Grid>
+                  </Paper>
                 </Grid>
+
+                {/* Processed Content Section */}
+                {selectedContent.processed_content && (
+                  <Grid item xs={12}>
+                    <Paper sx={{ p: 2 }}>
+                      <Typography variant="h6" gutterBottom>Processed Content</Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                          <Typography variant="subtitle2">Summary</Typography>
+                          <Typography variant="body2" sx={{ mb: 2 }}>
+                            {selectedContent.processed_content.summary || 'No summary available'}
+                          </Typography>
+                        </Grid>
+
+                        <Grid item xs={12}>
+                          <Typography variant="subtitle2">Processed Text</Typography>
+                          <Paper 
+                            variant="outlined" 
+                            sx={{ p: 2, maxHeight: 200, overflow: 'auto' }}
+                          >
+                            <Typography variant="body2" component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
+                              {selectedContent.processed_content.text || 'No processed text available'}
+                            </Typography>
+                          </Paper>
+                        </Grid>
+
+                        {selectedContent.processed_content.tags && selectedContent.processed_content.tags.length > 0 && (
+                          <Grid item xs={12}>
+                            <Typography variant="subtitle2">Tags</Typography>
+                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                              {selectedContent.processed_content.tags.map((tag) => (
+                                <Chip key={tag} label={tag} size="small" />
+                              ))}
+                            </Box>
+                          </Grid>
+                        )}
+
+                        {selectedContent.processed_content.classifications && (
+                          <Grid item xs={12}>
+                            <Typography variant="subtitle2">Classifications</Typography>
+                            <Paper 
+                              variant="outlined" 
+                              sx={{ p: 2, maxHeight: 200, overflow: 'auto' }}
+                            >
+                              <Typography variant="body2" component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
+                                {JSON.stringify(selectedContent.processed_content.classifications, null, 2)}
+                              </Typography>
+                            </Paper>
+                          </Grid>
+                        )}
+
+                        <Grid item xs={12}>
+                          <Typography variant="subtitle2">Processed Date</Typography>
+                          <Typography variant="body2">
+                            {selectedContent.processed_content.processed_date ? 
+                              new Date(selectedContent.processed_content.processed_date).toLocaleString() :
+                              'Not available'
+                            }
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Paper>
+                  </Grid>
+                )}
               </Grid>
             </DialogContent>
             <DialogActions>
               <Button onClick={() => setDetailOpen(false)}>Close</Button>
-              <Button
-                startIcon={<AutorenewIcon />}
-                onClick={() => handleReprocess(selectedContent.url)}
-                disabled={selectedContent.processing_status === 'processing'}
-              >
-                Reprocess
-              </Button>
+              {selectedContent.raw_content.processing_status !== 'processing' && (
+                <Button 
+                  onClick={() => handleReprocess(selectedContent.raw_content._id)}
+                  startIcon={<AutorenewIcon />}
+                >
+                  Reprocess
+                </Button>
+              )}
             </DialogActions>
           </>
         )}

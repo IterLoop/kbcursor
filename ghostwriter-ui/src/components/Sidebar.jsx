@@ -2,78 +2,66 @@ import {
   Drawer,
   List,
   ListItem,
-  ListItemButton,
   ListItemIcon,
   ListItemText,
-  Toolbar,
+  Box,
   useTheme,
   useMediaQuery
 } from "@mui/material";
-import { Link, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import StorageIcon from "@mui/icons-material/Storage";
-import BugReportIcon from "@mui/icons-material/BugReport";
 import SettingsIcon from "@mui/icons-material/Settings";
-import WebIcon from "@mui/icons-material/Web";
+import ListAltIcon from "@mui/icons-material/ListAlt";
+import AssessmentIcon from "@mui/icons-material/Assessment";
 
 const drawerWidth = 240;
 
 const menuItems = [
   { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
-  { text: "Crawlers", icon: <WebIcon />, path: "/crawlers" },
-  { text: "Data Explorer", icon: <StorageIcon />, path: "/explorer" },
-  { text: "Logs", icon: <BugReportIcon />, path: "/logs" },
+  { text: "Crawlers", icon: <ListAltIcon />, path: "/crawlers" },
+  { text: "Data Explorer", icon: <StorageIcon />, path: "/data-explorer" },
+  { text: "Logs", icon: <AssessmentIcon />, path: "/logs" },
   { text: "Settings", icon: <SettingsIcon />, path: "/settings" },
 ];
 
 function Sidebar({ open }) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const navigate = useNavigate();
   const location = useLocation();
-
-  const drawerContent = (
-    <>
-      <Toolbar />
-      <List>
-        {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton
-              component={Link}
-              to={item.path}
-              selected={location.pathname === item.path}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
-    </>
-  );
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   return (
     <Drawer
       variant={isMobile ? "temporary" : "persistent"}
+      anchor="left"
       open={open}
-      ModalProps={{
-        keepMounted: true, // Better mobile performance
-      }}
       sx={{
         width: drawerWidth,
         flexShrink: 0,
-        '& .MuiDrawer-paper': {
+        "& .MuiDrawer-paper": {
           width: drawerWidth,
-          boxSizing: 'border-box',
-          position: 'fixed',
-          height: '100%',
-          transition: theme.transitions.create(['width', 'margin'], {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-          }),
+          boxSizing: "border-box",
+          mt: 8,
+          backgroundColor: theme.palette.background.default,
         },
       }}
     >
-      {drawerContent}
+      <Box sx={{ overflow: "auto", mt: 1 }}>
+        <List>
+          {menuItems.map((item) => (
+            <ListItem
+              button
+              key={item.text}
+              onClick={() => navigate(item.path)}
+              selected={location.pathname === item.path}
+            >
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.text} />
+            </ListItem>
+          ))}
+        </List>
+      </Box>
     </Drawer>
   );
 }

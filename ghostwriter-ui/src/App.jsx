@@ -1,52 +1,38 @@
 import { useState } from "react";
-import { Box, CssBaseline, ThemeProvider, useTheme, useMediaQuery } from "@mui/material";
+import { Box, CssBaseline, ThemeProvider } from "@mui/material";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
-import theme from "./theme/theme";
-
-const drawerWidth = 240;
+import Crawlers from "./pages/Crawlers";
+import DataExplorer from "./pages/DataExplorer";
+import Logs from "./pages/Logs";
+import Settings from "./pages/Settings";
+import theme from "./theme";
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
 
   return (
-    <Router>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Box sx={{ display: "flex" }}>
-          <Navbar sidebarOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Router>
+        <Box sx={{ display: 'flex' }}>
+          <Navbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           <Sidebar open={sidebarOpen} />
-          <Box
-            component="main"
-            sx={{
-              flexGrow: 1,
-              p: 3,
-              mt: 8,
-              width: { sm: `calc(100% - ${sidebarOpen ? drawerWidth : 0}px)` },
-              marginLeft: { xs: 0, sm: 0 },
-              transition: theme.transitions.create(['margin', 'width'], {
-                easing: theme.transitions.easing.sharp,
-                duration: theme.transitions.duration.leavingScreen,
-              }),
-              backgroundColor: (theme) => theme.palette.background.default,
-            }}
-          >
+          <Box component="main" sx={{ flexGrow: 1, p: 3, mt: 8 }}>
             <Routes>
-              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/crawlers" element={<Crawlers />} />
+              <Route path="/data-explorer" element={<DataExplorer />} />
+              <Route path="/logs" element={<Logs />} />
+              <Route path="/settings" element={<Settings />} />
             </Routes>
           </Box>
         </Box>
-      </ThemeProvider>
-    </Router>
+      </Router>
+    </ThemeProvider>
   );
 }
 

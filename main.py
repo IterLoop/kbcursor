@@ -8,6 +8,12 @@ import json
 import logging
 from openai import OpenAI
 from datetime import datetime
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from tools.mongo import MongoDB
+from typing import Optional, List
+from pydantic import BaseModel
+from bson import ObjectId
 
 # Setup logging
 logging.basicConfig(
@@ -20,8 +26,152 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Add immediate test message
-logger.info("Logging system initialized")
+# Initialize FastAPI app
+app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Initialize MongoDB connection
+try:
+    mongo_client = MongoDB(os.getenv('MONGO_DB_URL', 'mongodb://localhost:27017'), 'ghostwriter')
+except Exception as e:
+    logger.error(f"Failed to connect to MongoDB: {e}")
+    raise
+
+class ContentResponse(BaseModel):
+    _id: str
+    url: str
+    title: str
+    date_crawled: str
+    processing_status: str
+    source: str
+
+@app.get("/api/v1/data/content")
+async def get_content(
+    page: int = 1,
+    limit: int = 10,
+    status: Optional[str] = None,
+    source: Optional[str] = None
+) -> List[ContentResponse]:
+    try:
+        skip = (page - 1) * limit
+        query = {}
+        if status:
+            query["processing_status"] = status
+        if source:
+            query["source"] = source
+
+        logger.info(f"MongoDB Query: {query}")
+        
+        # Get total count
+        total_count = mongo_client.db.raw_content.count_documents(query)
+        logger.info(f"Total documents matching query: {total_count}")
+
+        cursor = mongo_client.db.raw_content.find(
+            query,
+            {
+                "_id": 1,
+                "url": 1,
+                "title": 1,
+                "date_crawled": 1,
+                "processing_status": 1,
+                "source": 1
+            }
+        ).skip(skip).limit(limit)
+
+        content = []
+        for doc in cursor:
+            logger.info(f"Found document: {doc}")
+            content.append(ContentResponse(
+                _id=str(doc["_id"]),
+                url=doc["url"],
+                title=doc.get("title", "No title"),
+                date_crawled=doc.get("date_crawled", datetime.now().isoformat()),
+                processing_status=doc.get("processing_status", "raw"),
+                source=doc.get("source", "web")
+            ))
+        
+        logger.info(f"Returning {len(content)} documents")
+        return content
+    except Exception as e:
+        logger.error(f"Error fetching content: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/data/content/{content_id}")
+async def get_content_detail(content_id: str):
+    try:
+        # Convert string ID to ObjectId
+        obj_id = ObjectId(content_id)
+        
+        # Get raw content
+        raw_content = mongo_client.db.raw_content.find_one({"_id": obj_id})
+        if not raw_content:
+            raise HTTPException(status_code=404, detail="Content not found")
+            
+        # Get processed content if it exists
+        processed_content = mongo_client.db.processed_content.find_one({"original_id": obj_id})
+        
+        # Convert ObjectId to string
+        raw_content["_id"] = str(raw_content["_id"])
+        if processed_content:
+            processed_content["_id"] = str(processed_content["_id"])
+        
+        # Return the response with the exact structure expected by frontend
+        return {
+            "raw_content": raw_content,
+            "processed_content": processed_content
+        }
+    except Exception as e:
+        logger.error(f"Error fetching content detail: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/data/content/{content_id}/reprocess")
+async def reprocess_content(content_id: str):
+    try:
+        content = mongo_client.db.raw_content.find_one({"_id": content_id})
+        if not content:
+            raise HTTPException(status_code=404, detail="Content not found")
+        
+        # Update processing status
+        mongo_client.db.raw_content.update_one(
+            {"_id": content_id},
+            {"$set": {"processing_status": "processing"}}
+        )
+        
+        # TODO: Implement reprocessing logic
+        return {"status": "processing"}
+    except Exception as e:
+        logger.error(f"Error reprocessing content: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/data/pipeline/status")
+async def get_pipeline_status():
+    try:
+        # Get all content being processed
+        processing = mongo_client.db.raw_content.find(
+            {"processing_status": "processing"},
+            {"_id": 1, "url": 1, "progress": 1}
+        ).limit(10)
+        
+        tasks = []
+        for doc in processing:
+            tasks.append({
+                "task_id": str(doc["_id"]),
+                "content_id": doc["url"],
+                "task_type": "Processing",
+                "progress": doc.get("progress", 0)
+            })
+        return tasks
+    except Exception as e:
+        logger.error(f"Error fetching pipeline status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 def setup_environment():
     """Setup environment variables and verify configuration"""

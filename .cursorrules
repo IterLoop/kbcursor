@@ -26,6 +26,22 @@ versioning:
   current_phase: "0.x.x"
 
 directory_architecture:
+  frontend:
+    - src/
+      - components/
+      - pages/
+      - styles/
+      - utils/
+    - public/
+    - package.json
+    - next.config.js
+    - tsconfig.json
+  backend:
+    - api/
+      - routes/
+      - middleware/
+      - controllers/
+    - server.js
   scripts:
     - crawlers/
       - strategies/
@@ -55,6 +71,20 @@ directory_architecture:
     - youtube_api_key.py
   main_file: main.py
   requirements_file: requirements.txt
+  deployment:
+    - docker/
+      - frontend.Dockerfile
+      - backend.Dockerfile
+    - docker-compose.yml
+    - nginx/
+      - nginx.conf
+    - kubernetes/
+      - deployments/
+      - services/
+  infrastructure:
+    - terraform/
+    - cloudformation/
+    - ansible/
 
 best_practices:
   - Maintain modular architecture for easy feature expansion.
@@ -72,6 +102,64 @@ best_practices:
   - Utilize acceleration capabilities like [YouTube Transcript API](https://pypi.org/project/youtube-transcript-api/) for quick content extraction.
   - Delete only code that is explicitly replaced, existing code should be preserved unless explicitly replaced.
   - Use existing code from scripts/crawlers where available, only create new implementations when necessary.
+  ui_guidelines:
+    - "Ensure responsive design for all screen sizes"
+    - "Use a consistent design system (e.g., Material UI, Bootstrap, or custom style library)"
+    - "Follow accessibility standards (WCAG 2.1 AA or above)"
+    - "Keep the UI clean, minimal, and modern"
+    accessibility:
+      standards: "WCAG 2.1 AA or above"
+      validation_tools:
+        - "[axe DevTools](https://www.deque.com/axe/)"
+        - "[WAVE](https://wave.webaim.org/)"
+        - "[Lighthouse](https://developers.google.com/web/tools/lighthouse)"
+      testing:
+        - "Implement jest-axe for automated accessibility testing"
+        - "Regular manual testing with screen readers"
+        - "Keyboard navigation testing"
+    component_testing:
+      tools:
+        - "[Jest](https://jestjs.io/) for unit testing"
+        - "[React Testing Library](https://testing-library.com/react) for component testing"
+        - "[Cypress](https://www.cypress.io/) for E2E testing"
+      guidelines:
+        - "Write tests before implementation (TDD)"
+        - "Test user interactions and accessibility"
+        - "Maintain 80%+ coverage"
+  frontend:
+    - "Use TypeScript for all new components and functions"
+    - "Implement component-driven development with Storybook"
+    - "Follow Next.js App Router architecture"
+    - "Use React Server Components where applicable"
+    - "Implement proper error boundaries and loading states"
+    - "Use CSS Modules or Tailwind for styling"
+    - "Optimize images and implement lazy loading"
+    - "Follow atomic design principles for components"
+  backend:
+    - "Implement RESTful API design principles"
+    - "Use middleware for authentication and logging"
+    - "Implement rate limiting and security headers"
+    - "Use WebSocket for real-time features"
+    - "Implement proper API versioning"
+  devops:
+    - "Use multi-stage Docker builds for smaller images"
+    - "Implement CI/CD pipelines (GitHub Actions/Jenkins)"
+    - "Use infrastructure as code for all deployments"
+    - "Implement proper logging and monitoring (ELK stack)"
+    - "Use semantic versioning for all packages"
+    - "Maintain separate development and production environments"
+  security:
+    - "Implement HTTPS everywhere"
+    - "Use JWT for authentication"
+    - "Implement CORS policies"
+    - "Regular security audits and dependency updates"
+    - "Secure environment variable management"
+  performance:
+    - "Implement caching strategies (Redis/Memcached)"
+    - "Use CDN for static assets"
+    - "Optimize database queries"
+    - "Implement proper indexing"
+    - "Use connection pooling"
 
 prd:
 
@@ -144,6 +232,23 @@ prd:
       - Proxy management services.
       - External APIs for specific data sources (e.g., YouTube).
       - **YouTube Transcript API** for video content extraction.
+      youtube_transcript:
+        description: "Centralized YouTube content extraction service"
+        api_version: "latest"
+        documentation: "https://pypi.org/project/youtube-transcript-api/"
+        use_cases:
+          - "Quick video content extraction"
+          - "Batch transcript fetching"
+          - "Translation preservation"
+          - "Real-time content processing"
+        best_practices:
+          - "Implement rate limiting"
+          - "Use batch processing for multiple videos"
+          - "Cache frequently accessed transcripts"
+        error_handling:
+          - "Implement retry logic"
+          - "Log failed extractions"
+          - "Maintain fallback options"
 
   non_functional_requirements:
     performance:
@@ -182,6 +287,19 @@ prd:
     - "[Proxy management service](https://brightdata.com/) (e.g., Bright Data)."
     - "[ControlFlow](https://github.com/PrefectHQ/ControlFlow) for orchestrating agentic workflows."
     - "[YouTube Transcript API](https://pypi.org/project/youtube-transcript-api/) for video content extraction."
+    frontend:
+      - "[Next.js](https://nextjs.org/) for React framework"
+      - "[TypeScript](https://www.typescriptlang.org/) for type safety"
+      - "[Tailwind CSS](https://tailwindcss.com/) for styling"
+      - "[React Query](https://tanstack.com/query/latest) for data fetching"
+      - "[Zustand](https://zustand-demo.pmnd.rs/) for state management"
+    backend:
+      - "[Express.js](https://expressjs.com/) for API server"
+      - "[Socket.IO](https://socket.io/) for real-time communications"
+    devops:
+      - "[Docker](https://www.docker.com/) for containerization"
+      - "[Kubernetes](https://kubernetes.io/) for orchestration"
+      - "[Terraform](https://www.terraform.io/) for infrastructure as code"
 
   milestones:
     mvp_development_month_1_2:
@@ -233,3 +351,114 @@ build_tracking:
     - "Version must be updated with every commit"
     - "Follow semantic versioning based on development phases"
     - "Include version history in buildlog.yaml"
+
+development_environment:
+  required_tools:
+    - "Node.js >= 18.x"
+    - "npm >= 9.x or yarn >= 1.22"
+    - "Docker >= 20.x"
+    - "Python >= 3.9"
+    - "kubectl for Kubernetes interaction"
+    - "terraform >= 1.0"
+  
+  setup_commands:
+    frontend: |
+      npm install
+      npm run dev
+    backend: |
+      python -m venv venv
+      source venv/bin/activate
+      pip install -r requirements.txt
+      python server.py
+    docker: |
+      docker-compose up --build
+
+ports_and_services:
+  frontend: 3000
+  backend: 5000
+  mongodb: 27017
+  redis: 6379
+  nginx: 80
+
+contributor_guidelines:
+  onboarding:
+    - "Review .cursorrules thoroughly"
+    - "Set up development environment using provided commands"
+    - "Study existing codebase architecture"
+  code_standards:
+    - "Follow [PEP 8](https://peps.python.org/pep-0008/) for Python"
+    - "Use [Prettier](https://prettier.io/) for JavaScript/TypeScript"
+    - "Implement [ESLint](https://eslint.org/) rules"
+  pr_process:
+    - "Create feature branch from development"
+    - "Follow conventional commits"
+    - "Include tests and documentation"
+    - "Update buildlog.yaml"
+
+risk_management:
+  evaluation_process:
+    frequency: "Weekly"
+    stakeholders: ["Tech Lead", "Product Owner", "Security Lead"]
+    criteria:
+      - "Impact severity (1-5)"
+      - "Likelihood (1-5)"
+      - "Mitigation complexity (1-5)"
+  escalation_matrix:
+    high_risk:
+      - "Immediate team lead notification"
+      - "24-hour mitigation plan"
+      - "Daily status updates"
+    medium_risk:
+      - "Weekly review"
+      - "Documented mitigation strategy"
+    low_risk:
+      - "Monthly monitoring"
+      - "Standard update cycle"
+
+# Example buildlog.yaml structure
+example_buildlog: |
+  version: 0.1.0
+  date: 2024-01-10
+  changes:
+    - type: feature
+      description: "Implemented YouTube transcript extraction"
+      files_changed:
+        - tools/youtube_transcript_api.py
+        - tests/test_youtube_transcript_api.py
+      dependencies_added:
+        - youtube_transcript_api==0.6.0
+    - type: fix
+      description: "Fixed rate limiting issue"
+      files_changed:
+        - tools/api_rate_limiter.py
+
+# Example terraform configuration
+example_terraform: |
+  provider "aws" {
+    region = "us-west-2"
+  }
+
+  module "ecs_cluster" {
+    source = "./modules/ecs"
+    
+    cluster_name = "ghostwriter-cluster"
+    vpc_id      = module.vpc.vpc_id
+    subnet_ids  = module.vpc.private_subnets
+    
+    tags = {
+      Environment = "production"
+      Project     = "ghostwriter"
+    }
+  }
+
+external_resources:
+  coding_standards:
+    - "[PEP 8 Style Guide](https://peps.python.org/pep-0008/)"
+    - "[Google JavaScript Style Guide](https://google.github.io/styleguide/jsguide.html)"
+  versioning:
+    - "[Semantic Versioning](https://semver.org/)"
+    - "[Conventional Commits](https://www.conventionalcommits.org/)"
+  apis:
+    - "[YouTube Data API](https://developers.google.com/youtube/v3)"
+    - "[OpenAI API](https://platform.openai.com/docs/api-reference)"
+    - "[HuggingFace API](https://huggingface.co/docs/api-inference/index)"

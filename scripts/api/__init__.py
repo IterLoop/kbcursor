@@ -1,0 +1,3 @@
+"""
+Ghostwriter API package.
+""" 

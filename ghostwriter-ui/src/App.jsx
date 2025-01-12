@@ -4,8 +4,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
-import Crawlers from "./pages/Crawlers";
-import Logs from "./pages/Logs";
 import theme from "./theme/theme";
 
 const drawerWidth = 240;
@@ -43,8 +41,6 @@ function App() {
           >
             <Routes>
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/crawlers" element={<Crawlers />} />
-              <Route path="/logs" element={<Logs />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Box>

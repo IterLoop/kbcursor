@@ -26,3 +26,7 @@ python-json-logger>=2.0.7
 # Web scraping
 lxml>=5.1.0
 html5lib>=1.1
+
+# FastAPI
+fastapi>=0.104.0
+uvicorn>=0.24.0

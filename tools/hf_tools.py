@@ -15,26 +15,26 @@ class HFTools:
         
         try:
             # Initialize summarization pipeline
-            logger.debug(f"Loading summarization model: {HF_CONFIG['DEFAULT_MODELS']['summarization']}")
+            logger.debug(f"Loading summarization model: {HF_CONFIG['DEFAULT_MODELS']['SUMMARIZER']}")
             self.summarizer = pipeline(
                 "summarization",
-                model=HF_CONFIG['DEFAULT_MODELS']['summarization'],
+                model=HF_CONFIG['DEFAULT_MODELS']['SUMMARIZER'],
                 token=HF_CONFIG['API_TOKENS']['INFERENCE']
             )
             
             # Initialize classification pipeline
-            logger.debug(f"Loading classification model: {HF_CONFIG['DEFAULT_MODELS']['classification']}")
+            logger.debug(f"Loading classification model: {HF_CONFIG['DEFAULT_MODELS']['CLASSIFIER']}")
             self.classifier = pipeline(
                 "zero-shot-classification",
-                model=HF_CONFIG['DEFAULT_MODELS']['classification'],
+                model=HF_CONFIG['DEFAULT_MODELS']['CLASSIFIER'],
                 token=HF_CONFIG['API_TOKENS']['INFERENCE']
             )
             
             # Initialize sentiment analysis pipeline
-            logger.debug(f"Loading sentiment analysis model: {HF_CONFIG['DEFAULT_MODELS']['sentiment']}")
+            logger.debug(f"Loading sentiment analysis model: {HF_CONFIG['DEFAULT_MODELS']['SENTIMENT']}")
             self.sentiment_analyzer = pipeline(
                 "sentiment-analysis",
-                model=HF_CONFIG['DEFAULT_MODELS']['sentiment'],
+                model=HF_CONFIG['DEFAULT_MODELS']['SENTIMENT'],
                 token=HF_CONFIG['API_TOKENS']['INFERENCE']
             )
             
@@ -110,7 +110,7 @@ class HFTools:
             }
             
             duration = time.time() - start_time
-            logger.debug(f"Sentiment analysis completed in {duration:.2f} seconds. Result: {result['label']}")
+            logger.debug(f"Sentiment analysis completed in {duration:.2f} seconds. Result: {sentiment}")
             
             return sentiment
             

@@ -5,6 +5,9 @@ secrets/*.key
 secrets/*.token
 secrets/*.env.*
 
+# Cursor specific
+.cursorrules
+
 # Python
 __pycache__/
 *.py[cod]

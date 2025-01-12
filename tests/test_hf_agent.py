@@ -5,27 +5,29 @@ from tools.hf_agent import HFAgentManager
 class TestHFAgentManager(unittest.TestCase):
     """Test cases for HuggingFace Agent Manager implementation"""
     
-    def setUp(self):
+    @patch('tools.hf_agent.HFTools')
+    def setUp(self, mock_tools_class):
         """Set up test fixtures"""
-        with patch('tools.hf_tools.HFTools'):
-            self.agent_manager = HFAgentManager()
+        self.mock_tools_class = mock_tools_class
+        self.mock_tools = MagicMock()
+        self.mock_tools_class.return_value = self.mock_tools
         
+        self.agent_manager = HFAgentManager()
         self.test_text = "This is a test text for processing. It contains multiple sentences and should be suitable for testing various NLP tasks."
     
     def test_init(self):
         """Test initialization of HFAgentManager"""
-        with patch('tools.hf_tools.HFTools') as mock_tools:
-            agent_manager = HFAgentManager()
-            
-            # Verify initialization
-            mock_tools.assert_called_once()
-            self.assertTrue(hasattr(agent_manager, 'tools'))
-            self.assertTrue(hasattr(agent_manager, 'registered_tools'))
+        # Verify HFTools initialization
+        self.mock_tools_class.assert_called_once()
+        
+        # Verify attributes
+        self.assertTrue(hasattr(self.agent_manager, 'tools'))
+        self.assertTrue(hasattr(self.agent_manager, 'registered_tools'))
     
     def test_process_content_summarize(self):
         """Test content processing with summarization task"""
         # Mock the tools instance
-        self.agent_manager.tools.summarize_text.return_value = "Test summary"
+        self.mock_tools.summarize_text.return_value = "Test summary"
         
         # Test summarization
         result = self.agent_manager.process_content(
@@ -39,7 +41,7 @@ class TestHFAgentManager(unittest.TestCase):
         self.assertEqual(result["result"], "Test summary")
         
         # Verify the tool was called with correct parameters
-        self.agent_manager.tools.summarize_text.assert_called_with(
+        self.mock_tools.summarize_text.assert_called_with(
             self.test_text,
             max_length=100,
             min_length=30
@@ -49,7 +51,7 @@ class TestHFAgentManager(unittest.TestCase):
         """Test content processing with classification task"""
         # Mock the tools instance
         mock_classification = {"label": "test_label", "score": 0.95}
-        self.agent_manager.tools.classify_text.return_value = mock_classification
+        self.mock_tools.classify_text.return_value = mock_classification
         
         # Test classification
         labels = ["label1", "label2"]
@@ -63,7 +65,7 @@ class TestHFAgentManager(unittest.TestCase):
         self.assertEqual(result["result"], mock_classification)
         
         # Verify the tool was called with correct parameters
-        self.agent_manager.tools.classify_text.assert_called_with(
+        self.mock_tools.classify_text.assert_called_with(
             self.test_text,
             labels=labels
         )
@@ -72,7 +74,7 @@ class TestHFAgentManager(unittest.TestCase):
         """Test content processing with sentiment analysis task"""
         # Mock the tools instance
         mock_sentiment = {"label": "positive", "score": 0.9}
-        self.agent_manager.tools.analyze_sentiment.return_value = mock_sentiment
+        self.mock_tools.analyze_sentiment.return_value = mock_sentiment
         
         # Test sentiment analysis
         result = self.agent_manager.process_content(
@@ -84,7 +86,7 @@ class TestHFAgentManager(unittest.TestCase):
         self.assertEqual(result["result"], mock_sentiment)
         
         # Verify the tool was called with correct parameters
-        self.agent_manager.tools.analyze_sentiment.assert_called_with(self.test_text)
+        self.mock_tools.analyze_sentiment.assert_called_with(self.test_text)
     
     def test_process_content_invalid_task(self):
         """Test content processing with invalid task type"""

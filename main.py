@@ -8,6 +8,7 @@ import logging
 from bson import ObjectId, json_util
 import json
 from datetime import datetime
+from pydantic import BaseModel
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -46,6 +47,14 @@ class MongoJSONEncoder(json.JSONEncoder):
 def serialize_mongodb(data: Any) -> Any:
     """Serialize MongoDB data including ObjectId and datetime."""
     return json.loads(json.dumps(data, cls=MongoJSONEncoder))
+
+# Add Pydantic model for article request
+class ArticleRequest(BaseModel):
+    outline: str
+    audience: str
+    writing_style: str
+    imagination_level: int
+    research_level: int
 
 @app.get("/api/v1/data/content")
 async def get_content(
@@ -110,4 +119,44 @@ async def get_collections():
         
     except Exception as e:
         logger.error(f"Error in get_collections: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/articles/generate")
+async def generate_article_prompt(request: ArticleRequest):
+    try:
+        # Create a new document with the request data
+        article_request = {
+            **request.dict(),
+            "created_at": datetime.utcnow(),
+            "status": "pending"
+        }
+        
+        # Insert into article_requests collection
+        result = db['article_requests'].insert_one(article_request)
+        
+        # Generate agent prompt (placeholder for now)
+        agent_prompt = f"""Create an article about {request.outline}
+Audience: {request.audience}
+Style: {request.writing_style}
+Imagination Level: {request.imagination_level}
+Research Level: {request.research_level}"""
+
+        # Generate search terms (placeholder for now)
+        search_terms = [word for word in request.outline.split() if len(word) > 3]
+        
+        response = {
+            "request_id": str(result.inserted_id),
+            "agent_prompt": agent_prompt,
+            "search_terms": search_terms,
+            "date_range": {
+                "start": "2023-01-01",
+                "end": "2024-01-12"
+            }
+        }
+        
+        logger.info(f"Created article request: {response['request_id']}")
+        return serialize_mongodb(response)
+        
+    except Exception as e:
+        logger.error(f"Error in generate_article_prompt: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

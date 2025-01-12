@@ -1,0 +1,235 @@
+# .cursorrules
+#
+# Identifier: ghostwriter-2025-01-10
+# Random Phrase (per request): "Nammuru Mysuru, ghostwriter in progress"
+# 
+# This file outlines the directory architecture, best practices, and the Product Requirements Document (PRD)
+# for the "ghostwriter" app. All engineering and product teams must follow these rules to ensure a deployable
+# and maintainable product.
+
+cursor_following_instructions: true
+random_phrase: "Nammuru Mysuru, ghostwriter in progress"
+
+app_name: ghostwriter
+unique_identifier: ghostwriter-2025-01-10
+
+versioning:
+  format: "major.minor.patch"
+  rules:
+    major: "Increment for breaking changes or completion of development phases"
+    minor: "Increment for new feature additions or significant improvements"
+    patch: "Increment for bug fixes and minor improvements"
+  development_phases:
+    "0.x.x": "MVP Development (Month 1-2)"
+    "1.x.x": "Feature Expansion (Month 3-4)"
+    "2.x.x": "Scaling and Optimization (Month 5+)"
+  current_phase: "0.x.x"
+
+directory_architecture:
+  scripts:
+    - crawlers/
+      - strategies/
+        - twitter_crawler.py
+        - selenium_crawler.py
+        - apify_crawler.py
+        - js_crawler.py
+        - static_crawler.py
+    - process_data.py
+    - test_perplexity_processing.py
+  controllers:
+    - process_content.py
+    - onetimeexport.py
+  tools:
+    - mongo.py
+    - hf_agent.py
+    - hf_tools.py
+    - vector_db.py
+    - youtube_transcript_api.py
+  tests:
+    - test_hf_agent.py
+    - test_hf_tools.py
+    - test_vector_db.py
+    - test_youtube_transcript_api.py
+  secrets:
+    - hf_api_key.py
+    - youtube_api_key.py
+  main_file: main.py
+  requirements_file: requirements.txt
+
+best_practices:
+  - Maintain modular architecture for easy feature expansion.
+  - Use environment variables to store and manage secrets.
+  - Log errors and successes with sufficient detail for debugging.
+  - Follow PEP 8 and clean code principles for readability.
+  - Implement robust error handling and fallback mechanisms.
+  - Use version control (Git) with clear branching strategies.
+  - Write comprehensive unit tests in the `tests/` directory.
+  - Keep dependencies updated in requirements.txt.
+  - Document new features and changes in CHANGELOG.md (if applicable).
+  - Use Hugging Face Agents for orchestration and task management.
+  - Leverage Hugging Face Tools for specialized tasks (e.g., summarization, classification).
+  - Implement a vector database for fast content retrieval and concurrency.
+  - Utilize acceleration capabilities like [YouTube Transcript API](https://pypi.org/project/youtube-transcript-api/) for quick content extraction.
+  - Delete only code that is explicitly replaced, existing code should be preserved unless explicitly replaced.
+  - Use existing code from scripts/crawlers where available, only create new implementations when necessary.
+
+prd:
+
+  product_name: "ghostwriter"
+
+  executive_summary: >
+    Ghostwriter is a robust platform designed to scrape, process, and organize
+    data from diverse web sources into a structured knowledge repository. It supports
+    multi-strategy crawling, AI-driven content enrichment, and seamless data storage,
+    providing actionable insights for targeted domains such as supply chain, finance,
+    or market research. The system leverages Hugging Face Agents and Tools for a scalable,
+    under-five-minute article generation pipeline, with acceleration capabilities for rapid content extraction.
+
+  goals_and_objectives:
+    primary_goal: "Create a scalable, modular system for scraping, processing, and generating articles in under 5 minutes."
+    objectives:
+      - Automate extraction of structured and unstructured data.
+      - Process and enrich content with AI for summarization, tagging, and categorization.
+      - Provide a centralized repository for raw and processed data.
+      - Enable seamless integration with external tools and APIs.
+      - Orchestrate multiple agents for concurrent operations.
+      - Accelerate content extraction using specialized APIs and services.
+
+  features_and_requirements:
+    scraping_architecture:
+      requirements:
+        - Multi-strategy crawlers (static, Selenium, Apify, JS).
+        - Proxy management (rotating proxies, health checks).
+        - SERP integration (Google, Bing).
+        - **YouTube Transcript API** for quick video content extraction.
+    content_processing_pipeline:
+      requirements:
+        - Integration with Hugging Face Agents for orchestration.
+        - Use of Hugging Face Tools for summarization, classification, and tagging.
+        - Data filtering logic (exclude incomplete/irrelevant entries).
+        - Deduplication mechanism and robust error handling/logging.
+        - **YouTube Transcript API** for translating and preserving formatting of video transcripts.
+    data_storage_and_management:
+      requirements:
+        - MongoDB with raw_content and processed_content collections.
+        - Vector database for fast retrieval and concurrency.
+        - Relationship maintenance between raw and processed data.
+        - One-time export functionality for backups and migrations.
+    logging_and_monitoring:
+      requirements:
+        - Real-time logging of scraping operations, content processing, and proxy usage.
+        - Historical logs for analysis and performance metrics.
+        - Integration with Prefect 3.0 for observability.
+    scalability_and_modularity:
+      requirements:
+        - Modular design for new crawler strategies and API integrations.
+        - Batch processing for large datasets.
+        - Resource pooling (browser instances, API rate limits).
+        - Use of ControlFlow for orchestrating agentic workflows.
+        - **YouTube Transcript API** for batch fetching of transcripts.
+
+  functional_requirements:
+    core_functionalities:
+      - Crawl and scrape content from various web sources.
+      - Store raw and processed content with metadata.
+      - Process content using AI (summaries, tags, classifications).
+      - Provide robust error logging and handling.
+      - Generate articles in under 5 minutes using Hugging Face Agents and Tools.
+      - **YouTube Transcript API** for extracting video transcripts.
+    user_interaction:
+      - Admin dashboard to manage crawling, logs, and performance.
+      - Export capability for processed data.
+    api_integrations:
+      - Hugging Face API for NLP tasks.
+      - Proxy management services.
+      - External APIs for specific data sources (e.g., YouTube).
+      - **YouTube Transcript API** for video content extraction.
+
+  non_functional_requirements:
+    performance:
+      - Handle 10,000+ URLs/hour.
+      - Process 5,000+ entries/day for AI enrichment.
+      - Generate articles in under 5 minutes.
+    reliability:
+      - 99.9% uptime for critical systems.
+      - Retry logic for failed scrapes.
+    security:
+      - Environment variables for all sensitive info.
+      - Data encryption where necessary.
+    scalability:
+      - Horizontal scaling for higher workloads.
+      - Easy addition of new crawler types or data sources.
+      - Concurrent operations using ControlFlow.
+      - **YouTube Transcript API** for efficient video content extraction.
+
+  user_stories:
+    - "As a user, I want to scrape content from static and dynamic websites so that I can collect relevant data for processing."
+    - "As a developer, I want to manage proxy usage and rotation so that scraping remains anonymous."
+    - "As a user, I want to summarize/tag content so I can easily find relevant information."
+    - "As a user, I want the system to exclude duplicates and irrelevant content for high-quality data."
+    - "As an admin, I want to store raw and processed content with relationships so I can track changes."
+    - "As a user, I want to export processed data so I can create reports."
+    - "As a user, I want to receive a generated article in under 5 minutes."
+    - "As a user, I want to extract video transcripts quickly using **YouTube Transcript API**."
+
+  dependencies:
+    - "[Hugging Face Transformers](https://huggingface.co/docs/transformers/index) for AI-driven content enrichment."
+    - "[Hugging Face Agents](https://huggingface.co/docs/transformers/agents) for orchestration."
+    - "[Hugging Face Tools](https://huggingface.co/docs/transformers/agents#tools) for specialized tasks."
+    - "[MongoDB](https://www.mongodb.com/) for data storage."
+    - "[Vector database](https://huggingface.co/docs/datasets/faiss_es) (e.g., FAISS, Milvus, Qdrant) for fast retrieval."
+    - "[Selenium](https://www.selenium.dev/), [Apify](https://apify.com/), and other crawling tools."
+    - "[Proxy management service](https://brightdata.com/) (e.g., Bright Data)."
+    - "[ControlFlow](https://github.com/PrefectHQ/ControlFlow) for orchestrating agentic workflows."
+    - "[YouTube Transcript API](https://pypi.org/project/youtube-transcript-api/) for video content extraction."
+
+  milestones:
+    mvp_development_month_1_2:
+      - "Implement basic scraping for static/dynamic content."
+      - "Set up MongoDB schema."
+      - "Integrate Hugging Face Agents and Tools for summarization/tagging."
+      - "Set up vector database for fast retrieval."
+      - "Integrate **YouTube Transcript API** for video content extraction."
+    feature_expansion_month_3_4:
+      - "Add proxy management and SERP integration."
+      - "Implement logging and monitoring with Prefect 3.0."
+      - "Enable export functionality."
+      - "Integrate ControlFlow for agentic workflow orchestration."
+      - "Add **YouTube Transcript API** for batch fetching and translation."
+    scaling_and_optimization_month_5_plus:
+      - "Optimize performance for large-scale data."
+      - "Add support for new sources/APIs."
+      - "Enhance admin dashboard with analytics."
+      - "Implement concurrent operations for under-five-minute article generation."
+      - "Expand **YouTube Transcript API** capabilities for multimedia content."
+
+  risks_and_mitigation:
+    - risk: "API rate limits impacting performance."
+      mitigation: "Use multiple API keys and batch requests."
+    - risk: "Proxy failure or bans."
+      mitigation: "Maintain a pool of validated proxies and monitor health."
+    - risk: "Data inconsistencies."
+      mitigation: "Add validation steps in processing pipeline."
+    - risk: "Agent orchestration complexity."
+      mitigation: "Use ControlFlow for structured, observable workflows."
+    - risk: "YouTube API changes."
+      mitigation: "Monitor YouTube API changes and update **YouTube Transcript API** accordingly."
+
+  future_scope:
+    - "Integrate real-time analytics dashboards."
+    - "Extend to handle multimedia content (video, audio)."
+    - "Enable multilingual content processing with translation APIs."
+    - "Expand agentic capabilities for more complex tasks."
+    - "Integrate **YouTube Transcript API** for real-time video content extraction."
+
+  approval:
+    - "Approved By: [Name, Title, Date]"
+
+# Build log is maintained in a separate file - whenever a new commit is made, the build log is updated with the new changes.
+build_tracking:
+  log_file: buildlog.yaml
+  description: "Detailed build log tracking implemented components, dependencies, and next steps"
+  version_updates:
+    - "Version must be updated with every commit"
+    - "Follow semantic versioning based on development phases"
+    - "Include version history in buildlog.yaml"

@@ -1,36 +1,52 @@
 import { useState } from "react";
-import { Box, CssBaseline, ThemeProvider } from "@mui/material";
+import { Box, CssBaseline, ThemeProvider, useTheme, useMediaQuery } from "@mui/material";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
+import Dashboard from "./pages/Dashboard";
 import theme from "./theme/theme";
+
+const drawerWidth = 240;
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box sx={{ display: "flex" }}>
-        <Navbar sidebarOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
-        <Sidebar open={sidebarOpen} />
-        <Box
-          component="main"
-          sx={{
-            flexGrow: 1,
-            p: 3,
-            mt: 8,
-            backgroundColor: (theme) => theme.palette.background.default,
-          }}
-        >
-          {/* Main content will go here */}
-          <h1>Welcome to Ghostwriter</h1>
+    <Router>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Box sx={{ display: "flex" }}>
+          <Navbar sidebarOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
+          <Sidebar open={sidebarOpen} />
+          <Box
+            component="main"
+            sx={{
+              flexGrow: 1,
+              p: 3,
+              mt: 8,
+              width: { sm: `calc(100% - ${sidebarOpen ? drawerWidth : 0}px)` },
+              marginLeft: { xs: 0, sm: 0 },
+              transition: theme.transitions.create(['margin', 'width'], {
+                easing: theme.transitions.easing.sharp,
+                duration: theme.transitions.duration.leavingScreen,
+              }),
+              backgroundColor: (theme) => theme.palette.background.default,
+            }}
+          >
+            <Routes>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </Box>
         </Box>
-      </Box>
-    </ThemeProvider>
+      </ThemeProvider>
+    </Router>
   );
 }
 

@@ -6,7 +6,6 @@ secrets/*.token
 secrets/*.env.*
 
 # Cursor specific
-.cursorrules
 
 # Python
 __pycache__/
@@ -75,3 +74,21 @@ tokenizers/
 cache/
 .cache/
 hf_cache/
+
+# React/Vite specific
+ghostwriter-ui/node_modules/
+ghostwriter-ui/dist/
+ghostwriter-ui/.env
+ghostwriter-ui/.env.*
+ghostwriter-ui/*.local
+ghostwriter-ui/logs
+ghostwriter-ui/*.log
+ghostwriter-ui/npm-debug.log*
+ghostwriter-ui/yarn-debug.log*
+ghostwriter-ui/yarn-error.log*
+ghostwriter-ui/pnpm-debug.log*
+ghostwriter-ui/.vite/
+ghostwriter-ui/coverage/
+ghostwriter-ui/.DS_Store
+ghostwriter-ui/.idea/
+ghostwriter-ui/.vscode/

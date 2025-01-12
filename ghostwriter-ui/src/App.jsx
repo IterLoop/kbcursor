@@ -9,6 +9,7 @@ import Crawlers from "./pages/Crawlers";
 import DataExplorer from "./pages/DataExplorer";
 import Logs from "./pages/Logs";
 import Settings from "./pages/Settings";
+import ArticleOutline from "./pages/ArticleOutline";
 import theme from "./theme";
 
 const queryClient = new QueryClient({
@@ -39,6 +40,7 @@ function App() {
                 <Route path="/data-explorer" element={<DataExplorer />} />
                 <Route path="/logs" element={<Logs />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/articles" element={<ArticleOutline />} />
               </Routes>
             </Box>
           </Box>
